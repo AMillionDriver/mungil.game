@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         gameCards.forEach(card => {
             const gameName = card.getAttribute('data-game').toLowerCase();
-            const description = card.querySelector('p').textContent.toLowerCase();
+            const description = Array.from(card.querySelectorAll('p')).map(p => p.textContent.toLowerCase()).join(' ');
 
             if (gameName.includes(searchTerm) || description.includes(searchTerm)) {
                 card.style.display = 'block';
