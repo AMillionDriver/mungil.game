@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Protocol: Cyber Rebellion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #03040a;
+            overflow: hidden;
+            color: #fff;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .neon-border-cyan {
+            border: 1px solid #00f3ff;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3), inset 0 0 15px rgba(0, 243, 255, 0.1);
+        }
+        .neon-border-pink {
+            border: 1px solid #ff0055;
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.3), inset 0 0 15px rgba(255, 0, 85, 0.1);
+        }
+        .neon-text-cyan {
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.8), 0 0 20px rgba(0, 243, 255, 0.4);
+        }
+        .neon-text-pink {
+            text-shadow: 0 0 10px rgba(255, 0, 85, 0.8), 0 0 20px rgba(255, 0, 85, 0.4);
+        }
+        .neon-text-gold {
+            text-shadow: 0 0 10px rgba(255, 183, 0, 0.8);
+        }
+        .glass-panel {
+            background: rgba(8, 12, 24, 0.85);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(0, 243, 255, 0.25);
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        /* Scanline CRT FX */
+        .scanline-overlay {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            );
+            background-size: 100% 4px;
+        }
+        /* Typing cursor animation */
+        .typing-cursor::after {
+            content: '|';
+            animation: blink 0.8s infinite;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden">
+
+    <canvas id="gameCanvas"></canvas>
+    <div class="scanline-overlay absolute inset-0 pointer-events-none z-10"></div>
+
+    <div id="hud-combat" class="absolute top-0 left-0 right-0 z-20 p-4 pointer-events-none hidden">
+        <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+            
+            <!-- Player Status (HP & Energy) -->
+            <div class="glass-panel p-3 rounded-2xl flex items-center gap-4 min-w-[240px] pointer-events-auto">
+                <div class="relative w-12 h-12 rounded-xl bg-cyan-950 border border-cyan-400 flex items-center justify-center font-orbitron font-bold text-cyan-300 text-lg shadow-[0_0_15px_rgba(0,243,255,0.3)]">
+                    VEX
+                </div>
+                <div class="flex-1 space-y-1.5">
+                    <div class="flex justify-between text-[11px] font-orbitron font-bold text-cyan-300">
+                        <span>INTEGRITAS INTEGRAL</span>
+                        <span id="player-hp-text">100 / 100</span>
+                    </div>
+                    <div class="w-full bg-gray-950 h-2.5 rounded-full overflow-hidden border border-cyan-500/30">
+                        <div id="player-hp-bar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full w-full transition-all duration-150"></div>
+                    </div>
+                    
+                    <!-- Energy Gauge -->
+                    <div class="flex justify-between text-[9px] font-orbitron text-purple-300">
+                        <span>PLASMA ENERGY</span>
+                        <span id="player-energy-text">100%</span>
+                    </div>
+                    <div class="w-full bg-gray-950 h-1.5 rounded-full overflow-hidden border border-purple-500/30">
+                        <div id="player-energy-bar" class="bg-gradient-to-r from-purple-500 to-pink-500 h-full w-full transition-all duration-150"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Objective & Chapter Banner -->
+            <div class="glass-panel px-6 py-2.5 rounded-2xl text-center hidden md:block">
+                <div id="chapter-title" class="text-[10px] font-orbitron text-amber-400 font-bold tracking-widest uppercase">BAB 1: PELARIAN NETWORK</div>
+                <div id="mission-objective" class="text-xs font-orbitron text-cyan-200">Musnahkan Patroli Cyber-Guard!</div>
+            </div>
+
+            <!-- Combo & Boss HP -->
+            <div class="flex items-center gap-3 pointer-events-auto">
+                <div class="glass-panel px-4 py-3 rounded-2xl text-center min-w-[100px]">
+                    <div class="text-[10px] font-orbitron text-pink-400 font-bold tracking-wider">COMBO</div>
+                    <div id="combo-count" class="text-2xl font-black font-orbitron text-pink-500 neon-text-pink">0x</div>
+                </div>
+                <button id="btn-audio-toggle" class="p-3 rounded-2xl glass-panel text-cyan-400 hover:text-white border border-cyan-500/40">
+                    🔊
+                </button>
+            </div>
+        </div>
+
+        <!-- Boss Bar (Appears in Boss Fight) -->
+        <div id="boss-bar-container" class="max-w-2xl mx-auto mt-3 glass-panel p-2.5 rounded-xl border border-red-500/50 hidden">
+            <div class="flex justify-between text-xs font-orbitron font-bold text-red-400 mb-1">
+                <span id="boss-name">KAIROS MAINFRAME AVATAR</span>
+                <span id="boss-hp-text">100%</span>
+            </div>
+            <div class="w-full bg-gray-950 h-3 rounded-full overflow-hidden border border-red-500/40">
+                <div id="boss-hp-bar" class="bg-gradient-to-r from-red-600 via-pink-600 to-amber-500 h-full w-full transition-all duration-150"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dialogue-overlay" class="absolute inset-x-0 bottom-4 z-30 max-w-4xl mx-auto px-4 hidden pointer-events-auto">
+        <div class="glass-panel rounded-3xl p-5 md:p-6 border-2 border-cyan-500/50 shadow-[0_0_40px_rgba(0,243,255,0.25)] relative">
+            
+            <!-- Speaker Header & Character Badge -->
+            <div class="flex items-center gap-4 mb-3">
+                <div id="speaker-avatar" class="w-14 h-14 rounded-2xl bg-cyan-950 border-2 border-cyan-400 flex items-center justify-center text-2xl shadow-[0_0_15px_rgba(0,243,255,0.4)]">
+                    🤖
+                </div>
+                <div>
+                    <h3 id="speaker-name" class="text-lg font-black font-orbitron text-cyan-300 tracking-wider">A.I. ECHO</h3>
+                    <div id="speaker-role" class="text-[10px] font-orbitron text-gray-400 tracking-widest uppercase">SYSTEM NAVIGATOR</div>
+                </div>
+            </div>
+
+            <!-- Dialogue Text Box -->
+            <p id="dialogue-text" class="text-gray-100 text-sm md:text-base leading-relaxed min-h-[60px] font-medium typing-cursor">
+                Menginisialisasi tautan pikiran VEX-09... Musuh telah mengunci sektor ini.
+            </p>
+
+            <!-- Choices Container (Branching Story / Gameplay Boosts) -->
+            <div id="dialogue-choices" class="grid grid-cols-1 md:grid-cols-2 gap-2.5 mt-4 hidden">
+                <!-- Choice buttons injected dynamically -->
+            </div>
+
+            <!-- Next Indicator Button -->
+            <div id="dialogue-next-prompt" class="mt-3 flex justify-end">
+                <button id="btn-next-dialogue" class="px-5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500 hover:text-black border border-cyan-400 font-orbitron font-bold text-xs text-cyan-300 transition flex items-center gap-2">
+                    LANJUTKAN ➔
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="hacking-overlay" class="absolute inset-0 z-40 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-lg w-full rounded-3xl p-6 border-2 border-pink-500/60 text-center flex flex-col items-center gap-5 shadow-[0_0_50px_rgba(255,0,85,0.3)]">
+            <div>
+                <div class="text-xs font-orbitron text-pink-400 tracking-widest font-bold">BYPASS PROTOCOL</div>
+                <h2 class="text-2xl font-black font-orbitron text-pink-500 neon-text-pink">PERETASAN CORE FIREWALL</h2>
+            </div>
+
+            <p class="text-gray-300 text-xs leading-relaxed">
+                Tekan simbol urutan node yang berkedip secara akurat sebelum sinyal sekuritas kedaluwarsa!
+            </p>
+
+            <!-- Node Sequence Display -->
+            <div id="hack-sequence-container" class="flex justify-center gap-3 my-2">
+                <!-- Nodes generated dynamically -->
+            </div>
+
+            <!-- Timer Bar for Hacking -->
+            <div class="w-full bg-gray-900 h-2 rounded-full overflow-hidden border border-pink-500/40">
+                <div id="hack-timer-bar" class="bg-pink-500 h-full w-full transition-all duration-75"></div>
+            </div>
+
+            <!-- Interactive Hack Inputs -->
+            <div id="hack-buttons" class="grid grid-cols-4 gap-3 w-full">
+                <!-- Buttons injected dynamically -->
+            </div>
+
+            <div id="hack-status" class="text-xs font-orbitron font-bold text-amber-400 min-h-[16px]">MENUNGGU INPUT...</div>
+        </div>
+    </div>
+
+    <div id="touch-controls" class="absolute inset-0 pointer-events-none z-20 hidden">
+        <div id="joystick-zone" class="absolute bottom-8 left-8 w-36 h-36 rounded-full border-2 border-cyan-500/30 bg-cyan-950/20 pointer-events-auto flex items-center justify-center">
+            <div id="joystick-handle" class="w-14 h-14 rounded-full bg-cyan-400/80 border-2 border-white shadow-[0_0_15px_#00f3ff] transition-transform duration-75"></div>
+        </div>
+
+        <div class="absolute bottom-8 right-8 flex gap-3 pointer-events-auto">
+            <button id="btn-attack-touch" class="w-18 h-18 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-500 border-2 border-cyan-300 text-white font-orbitron font-black text-sm active:scale-95 shadow-[0_0_20px_#00f3ff] flex items-center justify-center p-4">
+                TEBAS
+            </button>
+            <button id="btn-dash-touch" class="w-16 h-16 rounded-full bg-gradient-to-tr from-pink-600 to-purple-600 border-2 border-pink-400 text-white font-orbitron font-bold text-xs active:scale-95 shadow-[0_0_15px_#ff0055] flex items-center justify-center p-3 self-end">
+                DASH
+            </button>
+        </div>
+    </div>
+
+    <div id="menu-screen" class="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-lg p-4">
+        <div class="glass-panel max-w-xl w-full rounded-3xl p-8 border-2 border-cyan-500/60 text-center flex flex-col items-center gap-6 shadow-[0_0_60px_rgba(0,243,255,0.3)]">
+            <div>
+                <span class="text-xs font-orbitron text-pink-500 tracking-widest font-black uppercase">TRIPLE-GENRE HYBRID GAME</span>
+                <h1 class="text-4xl md:text-5xl font-black font-orbitron tracking-wider neon-text-cyan text-cyan-400 mt-1">NEON PROTOCOL</h1>
+                <h2 class="text-2xl font-bold font-orbitron tracking-widest neon-text-pink text-pink-500">CYBER REBELLION</h2>
+            </div>
+
+            <p class="text-gray-300 text-sm leading-relaxed">
+                Kendalikan agen cybernetic <b>VEX-09</b> dalam misi membongkar konspirasi AI <b>KAIROS</b>. Paduan **Visual Novel**, **Hack & Slash Combat**, dan **Matrix Hacking Puzzle**!
+            </p>
+
+            <div class="w-full text-left bg-gray-900/80 p-4 rounded-2xl border border-cyan-900/80 text-xs space-y-2 text-cyan-300 font-orbitron">
+                <div class="font-bold text-white text-sm mb-1">🎮 PANDUAN KONTROL & TRIPLE GENRE:</div>
+                <div class="flex items-center gap-2">📖 <b>1. Visual Novel:</b> Tentukan keputusan dialog cerita yang berdampak pada status & alur pertempuran.</div>
+                <div class="flex items-center gap-2">⚔️ <b>2. Combat:</b> WASD / Touch Joystick (Jalan), Klik Kiri / Button (Tebasan Katana & Pantulkan Peluru), Spasi (Dash).</div>
+                <div class="flex items-center gap-2">🧩 <b>3. Hacking:</b> Tekan urutan kode cepat untuk menjebol firewall pertahanan boss.</div>
+            </div>
+
+            <button id="btn-start-game" class="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-pink-500 text-white font-orbitron font-black text-lg tracking-wider hover:brightness-110 active:scale-95 transition shadow-[0_0_35px_rgba(0,243,255,0.6)]">
+                MULAI OPERASI PEMBERONTAKAN
+            </button>
+        </div>
+    </div>
+
+    <div id="gameover-screen" class="absolute inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 hidden">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-8 border-2 border-red-500/60 text-center flex flex-col items-center gap-6">
+            <div>
+                <h2 id="end-title" class="text-4xl font-black font-orbitron text-red-500 neon-text-pink mb-2">SIGNAL LOST</h2>
+                <p id="end-subtitle" class="text-gray-400 text-sm">Mainframe Kairos menghapus keberadaan jaringanmu.</p>
+            </div>
+
+            <div class="w-full bg-gray-900/90 rounded-2xl p-4 border border-red-900/50 space-y-2 text-sm font-orbitron">
+                <div class="flex justify-between"><span class="text-gray-400">Total Combo Maksimal:</span><span id="end-combo" class="text-pink-400 font-bold">0x</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Cyber-Guard Dimusnahkan:</span><span id="end-kills" class="text-cyan-400 font-bold">0</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Status Misi:</span><span id="end-status" class="text-amber-400 font-bold">GAGAL</span></div>
+            </div>
+
+            <button id="btn-restart" class="w-full py-4 rounded-2xl bg-gradient-to-r from-red-600 via-pink-600 to-cyan-500 text-white font-orbitron font-black text-lg hover:brightness-110 active:scale-95 transition shadow-[0_0_25px_rgba(255,0,85,0.6)]">
+                REBOOT CORE (ULANGI)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Web Audio Synthesizer for Retro Arcade Sound Effects
+        const SoundEngine = {
+            ctx: null,
+            muted: false,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            playSlash() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.12);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.12);
+                } catch(e) {}
+            },
+            playParry() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1400, this.ctx.currentTime);
+                    osc.frequency.setValueAtTime(2200, this.ctx.currentTime + 0.05);
+                    gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.15);
+                } catch(e) {}
+            },
+            playDash() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(250, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.1);
+                } catch(e) {}
+            },
+            playExplosion() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.25);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.25);
+                } catch(e) {}
+            },
+            playDialogueBeep() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800 + Math.random() * 200, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(0.03, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.04);
+                } catch(e) {}
+            },
+            playHackSuccess() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const notes = [523.25, 659.25, 783.99, 1046.50];
+                    notes.forEach((freq, idx) => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.value = freq;
+                        gain.gain.setValueAtTime(0.12, this.ctx.currentTime + idx * 0.06);
+                        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.06 + 0.1);
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start(this.ctx.currentTime + idx * 0.06);
+                        osc.stop(this.ctx.currentTime + idx * 0.06 + 0.1);
+                    });
+                } catch(e) {}
+            }
+        };
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        let gameState = 'MENU'; // MENU, DIALOGUE, COMBAT, HACKING, GAMEOVER
+        
+        let killCount = 0;
+        let maxCombo = 0;
+        let currentCombo = 0;
+        let currentChapter = 1;
+
+        // Resize Canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Keyboard & Mouse State
+        const keys = {};
+        const mouse = { x: canvas.width / 2, y: canvas.height / 2, isDown: false };
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space' && gameState === 'COMBAT') player.dash();
+        });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+        window.addEventListener('mousedown', () => {
+            mouse.isDown = true;
+            if (gameState === 'COMBAT') player.attack();
+        });
+        window.addEventListener('mouseup', () => { mouse.isDown = false; });
+
+        // Touch Joystick Logic
+        const joystick = { active: false, startX: 0, startY: 0, dx: 0, dy: 0 };
+        const joystickZone = document.getElementById('joystick-zone');
+        const joystickHandle = document.getElementById('joystick-handle');
+
+        joystickZone.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = joystickZone.getBoundingClientRect();
+            joystick.active = true;
+            joystick.startX = rect.left + rect.width / 2;
+            joystick.startY = rect.top + rect.height / 2;
+        });
+
+        joystickZone.addEventListener('touchmove', (e) => {
+            if (!joystick.active) return;
+            const touch = e.touches[0];
+            let dx = touch.clientX - joystick.startX;
+            let dy = touch.clientY - joystick.startY;
+            let dist = Math.hypot(dx, dy);
+            const maxR = 45;
+            if (dist > maxR) {
+                dx = (dx / dist) * maxR;
+                dy = (dy / dist) * maxR;
+            }
+            joystick.dx = dx / maxR;
+            joystick.dy = dy / maxR;
+            joystickHandle.style.transform = `translate(${dx}px, ${dy}px)`;
+        });
+
+        const resetJoystick = () => {
+            joystick.active = false;
+            joystick.dx = 0;
+            joystick.dy = 0;
+            joystickHandle.style.transform = `translate(0px, 0px)`;
+        };
+        joystickZone.addEventListener('touchend', resetJoystick);
+        joystickZone.addEventListener('touchcancel', resetJoystick);
+
+        document.getElementById('btn-attack-touch').onclick = () => {
+            if (gameState === 'COMBAT') player.attack();
+        };
+        document.getElementById('btn-dash-touch').onclick = () => {
+            if (gameState === 'COMBAT') player.dash();
+        };
+
+        class Player {
+            constructor() {
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.radius = 18;
+                this.speed = 4.5;
+                this.maxHp = 100;
+                this.hp = 100;
+                this.energy = 100;
+                
+                // Attack Params
+                this.isAttacking = false;
+                this.attackAngle = 0;
+                this.attackProgress = 0;
+                this.attackRange = 75;
+                this.damage = 35;
+                this.lastAttack = 0;
+                this.attackCooldown = 220; // ms
+
+                // Dash Params
+                this.isDashing = false;
+                this.dashCooldown = 1200; // ms
+                this.lastDash = 0;
+                this.dashDuration = 140;
+
+                // Stat Boosts from Visual Novel Decisions
+                this.damageMult = 1.0;
+                this.defenseMult = 1.0;
+            }
+
+            reset() {
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.hp = 100;
+                this.energy = 100;
+                this.isAttacking = false;
+                this.isDashing = false;
+                this.damageMult = 1.0;
+                this.defenseMult = 1.0;
+            }
+
+            dash() {
+                const now = Date.now();
+                if (now - this.lastDash >= this.dashCooldown) {
+                    this.lastDash = now;
+                    this.isDashing = true;
+                    SoundEngine.playDash();
+                    createParticles(this.x, this.y, '#00f3ff', 15);
+                    setTimeout(() => { this.isDashing = false; }, this.dashDuration);
+                }
+            }
+
+            attack() {
+                const now = Date.now();
+                if (now - this.lastAttack >= this.attackCooldown) {
+                    this.lastAttack = now;
+                    this.isAttacking = true;
+                    this.attackProgress = 0;
+
+                    // Calculate Aim Angle
+                    if (isTouchDevice && joystick.active) {
+                        this.attackAngle = Math.atan2(joystick.dy, joystick.dx);
+                    } else {
+                        this.attackAngle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+                    }
+
+                    SoundEngine.playSlash();
+
+                    // Check Enemy Hits & Bullet Parries
+                    const arcStart = this.attackAngle - Math.PI / 3;
+                    const arcEnd = this.attackAngle + Math.PI / 3;
+
+                    // Deflect Bullets
+                    bullets.forEach(b => {
+                        const d = Math.hypot(b.x - this.x, b.y - this.y);
+                        if (d <= this.attackRange + 15 && !b.isPlayerBullet) {
+                            const bulletAngle = Math.atan2(b.y - this.y, b.x - this.x);
+                            if (Math.abs(normalizeAngle(bulletAngle - this.attackAngle)) < Math.PI / 2.5) {
+                                // Deflect back to enemy!
+                                b.isPlayerBullet = true;
+                                b.vx = Math.cos(this.attackAngle) * 12;
+                                b.vy = Math.sin(this.attackAngle) * 12;
+                                SoundEngine.playParry();
+                                createParticles(b.x, b.y, '#ffb700', 10);
+                            }
+                        }
+                    });
+
+                    // Hit Enemies
+                    enemies.forEach(enemy => {
+                        const d = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+                        if (d <= this.attackRange + enemy.radius) {
+                            const enemyAngle = Math.atan2(enemy.y - this.y, enemy.x - this.x);
+                            if (Math.abs(normalizeAngle(enemyAngle - this.attackAngle)) < Math.PI / 2.5) {
+                                enemy.takeDamage(this.damage * this.damageMult);
+                                currentCombo++;
+                                if (currentCombo > maxCombo) maxCombo = currentCombo;
+                                createParticles(enemy.x, enemy.y, '#00f3ff', 8);
+                            }
+                        }
+                    });
+                }
+            }
+
+            update(dt) {
+                let mx = 0;
+                let my = 0;
+
+                if (keys['KeyW'] || keys['ArrowUp']) my -= 1;
+                if (keys['KeyS'] || keys['ArrowDown']) my += 1;
+                if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
+                if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+
+                if (joystick.active) {
+                    mx = joystick.dx;
+                    my = joystick.dy;
+                } else if (mx !== 0 && my !== 0) {
+                    const norm = Math.hypot(mx, my);
+                    mx /= norm;
+                    my /= norm;
+                }
+
+                const currSpeed = this.isDashing ? this.speed * 2.6 : this.speed;
+                this.x += mx * currSpeed;
+                this.y += my * currSpeed;
+
+                // Bounds
+                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+
+                // Attack Animation Progress
+                if (this.isAttacking) {
+                    this.attackProgress += dt * 12;
+                    if (this.attackProgress >= 1) {
+                        this.isAttacking = false;
+                        this.attackProgress = 0;
+                    }
+                }
+
+                // Energy recharge
+                if (this.energy < 100) this.energy = Math.min(100, this.energy + dt * 10);
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                // Dash Ghost Trails
+                if (this.isDashing) {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.radius * 1.5, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(0, 243, 255, 0.3)';
+                    ctx.fill();
+                }
+
+                // Katana Slash Arc Animation
+                if (this.isAttacking) {
+                    ctx.save();
+                    ctx.rotate(this.attackAngle);
+                    ctx.beginPath();
+                    const sweepAngle = (this.attackProgress - 0.5) * (Math.PI * 0.8);
+                    ctx.arc(0, 0, this.attackRange, sweepAngle - 0.4, sweepAngle + 0.4);
+                    ctx.strokeStyle = '#00f3ff';
+                    ctx.lineWidth = 6;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#00f3ff';
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // Player Body
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00f3ff';
+
+                ctx.fillStyle = '#0a1026';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                // Inner Neon Core
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        function normalizeAngle(angle) {
+            while (angle > Math.PI) angle -= Math.PI * 2;
+            while (angle < -Math.PI) angle += Math.PI * 2;
+            return angle;
+        }
+
+        class Enemy {
+            constructor(type = 'grunt') {
+                this.type = type;
+                this.markedForDeletion = false;
+
+                // Border Spawn
+                if (Math.random() < 0.5) {
+                    this.x = Math.random() < 0.5 ? -30 : canvas.width + 30;
+                    this.y = Math.random() * canvas.height;
+                } else {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() < 0.5 ? -30 : canvas.height + 30;
+                }
+
+                if (type === 'boss') {
+                    this.x = canvas.width / 2;
+                    this.y = 120;
+                    this.radius = 42;
+                    this.speed = 1.2;
+                    this.maxHp = 1200;
+                    this.hp = 1200;
+                    this.color = '#ff0055';
+                    this.lastShot = 0;
+                } else if (type === 'shooter') {
+                    this.radius = 16;
+                    this.speed = 2.0;
+                    this.maxHp = 50;
+                    this.hp = 50;
+                    this.color = '#a855f7';
+                    this.lastShot = 0;
+                } else { // Melee Grunt
+                    this.radius = 16;
+                    this.speed = 2.8;
+                    this.maxHp = 70;
+                    this.hp = 70;
+                    this.color = '#ff0055';
+                }
+            }
+
+            update(now) {
+                const angle = Math.atan2(player.y - this.y, player.x - this.x);
+
+                if (this.type === 'boss') {
+                    // Boss Movement Pattern
+                    this.x += Math.cos(now * 0.001) * 2;
+                    
+                    // Boss Bullet Waves
+                    if (now - this.lastShot >= 1200) {
+                        this.lastShot = now;
+                        for (let i = -2; i <= 2; i++) {
+                            const bAngle = angle + (i * 0.2);
+                            bullets.push(new Bullet(this.x, this.y, bAngle, 5.5, false));
+                        }
+                    }
+                } else if (this.type === 'shooter') {
+                    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+                    if (dist > 220) {
+                        this.x += Math.cos(angle) * this.speed;
+                        this.y += Math.sin(angle) * this.speed;
+                    }
+
+                    if (now - this.lastShot >= 1800) {
+                        this.lastShot = now;
+                        bullets.push(new Bullet(this.x, this.y, angle, 6, false));
+                    }
+                } else {
+                    // Melee Chaser
+                    this.x += Math.cos(angle) * this.speed;
+                    this.y += Math.sin(angle) * this.speed;
+
+                    // Melee Hit Player
+                    const d = Math.hypot(player.x - this.x, player.y - this.y);
+                    if (d < player.radius + this.radius) {
+                        if (!player.isDashing) {
+                            player.hp -= 12 * player.defenseMult;
+                            createParticles(player.x, player.y, '#ff0055', 6);
+                            currentCombo = 0;
+                            if (player.hp <= 0) triggerGameOver();
+                        }
+                    }
+                }
+            }
+
+            takeDamage(amount) {
+                this.hp -= amount;
+                createParticles(this.x, this.y, this.color, 5);
+                if (this.hp <= 0 && !this.markedForDeletion) {
+                    this.markedForDeletion = true;
+                    killCount++;
+                    SoundEngine.playExplosion();
+                    createParticles(this.x, this.y, this.color, 15);
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.color;
+
+                ctx.fillStyle = '#050a18';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.35, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        class Bullet {
+            constructor(x, y, angle, speed, isPlayerBullet = false) {
+                this.x = x;
+                this.y = y;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.radius = isPlayerBullet ? 5 : 4;
+                this.isPlayerBullet = isPlayerBullet;
+                this.markedForDeletion = false;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                    this.markedForDeletion = true;
+                    return;
+                }
+
+                if (this.isPlayerBullet) {
+                    enemies.forEach(e => {
+                        if (Math.hypot(e.x - this.x, e.y - this.y) < e.radius + this.radius) {
+                            e.takeDamage(45);
+                            this.markedForDeletion = true;
+                        }
+                    });
+                } else {
+                    if (Math.hypot(player.x - this.x, player.y - this.y) < player.radius + this.radius) {
+                        if (!player.isDashing) {
+                            player.hp -= 10 * player.defenseMult;
+                            currentCombo = 0;
+                            createParticles(player.x, player.y, '#ff0055', 6);
+                            if (player.hp <= 0) triggerGameOver();
+                        }
+                        this.markedForDeletion = true;
+                    }
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.isPlayerBullet ? '#00f3ff' : '#ff0055';
+                ctx.fillStyle = this.isPlayerBullet ? '#00f3ff' : '#ff0055';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.radius = Math.random() * 3 + 1;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 4 + 1;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = 0.4;
+                this.markedForDeletion = false;
+            }
+
+            update(dt) {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= dt;
+                if (this.life <= 0) this.markedForDeletion = true;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.life / 0.4);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        const player = new Player();
+        let enemies = [];
+        let bullets = [];
+        let particles = [];
+
+        function createParticles(x, y, color, count = 8) {
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        const STORY_CHAPTERS = {
+            1: {
+                title: "BAB 1: SISIPAN CYBERNETIC",
+                speaker: "A.I. ECHO",
+                role: "SYSTEM NAVIGATOR",
+                avatar: "🤖",
+                text: "VEX-09, sinyal biologismu kembali stabil. Kita telah membobol sektor terluar Mainframe Kairos. Pasukan Cyber-Guard sedang menuju lokasi kita!",
+                choices: [
+                    { label: "⚡ Overclock Katana (+30% Damage)", action: () => { player.damageMult = 1.3; startChapterCombat(1); } },
+                    { label: "🛡️ Aktifkan Deflector (+25% Defense)", action: () => { player.defenseMult = 0.75; startChapterCombat(1); } }
+                ]
+            },
+            2: {
+                title: "BAB 2: GATEKEEPER FIREWALL",
+                speaker: "KAIROS (PROKSI)",
+                role: "OVERLORD AI",
+                avatar: "👁️",
+                text: "Subjek VEX-09. Upaya perlawananmu hanyalah anomali statistik. Kamu tidak akan bisa meretas Firewall Server Utama.",
+                choices: [
+                    { label: "🔓 Retas Node Keamanan Firewall", action: () => { startHackingMinigame(); } }
+                ]
+            },
+            3: {
+                title: "BAB 3: PERTEMPURAN TERAKHIR KAIROS",
+                speaker: "A.I. ECHO",
+                role: "SYSTEM NAVIGATOR",
+                avatar: "🤖",
+                text: "Firewall berhasil dijebol! Avatar fisik Kairos muncul di arena. Hancurkan core-nya untuk membebaskan jaringan!",
+                choices: [
+                    { label: "⚔️ SERANG AVATAR KAIROS!", action: () => { startChapterCombat(3); } }
+                ]
+            }
+        };
+
+        function showDialogue(chapterId) {
+            gameState = 'DIALOGUE';
+            document.getElementById('hud-combat').classList.add('hidden');
+            const overlay = document.getElementById('dialogue-overlay');
+            const data = STORY_CHAPTERS[chapterId];
+
+            document.getElementById('speaker-name').innerText = data.speaker;
+            document.getElementById('speaker-role').innerText = data.role;
+            document.getElementById('speaker-avatar').innerText = data.avatar;
+            document.getElementById('dialogue-text').innerText = data.text;
+
+            const choicesContainer = document.getElementById('dialogue-choices');
+            choicesContainer.innerHTML = '';
+
+            if (data.choices && data.choices.length > 0) {
+                document.getElementById('dialogue-next-prompt').classList.add('hidden');
+                choicesContainer.classList.remove('hidden');
+
+                data.choices.forEach(c => {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full py-3 px-4 rounded-xl bg-cyan-950/80 border border-cyan-400 hover:bg-cyan-400 hover:text-black font-orbitron font-bold text-xs text-cyan-200 transition text-left";
+                    btn.innerText = c.label;
+                    btn.onclick = () => {
+                        overlay.classList.add('hidden');
+                        c.action();
+                    };
+                    choicesContainer.appendChild(btn);
+                });
+            } else {
+                choicesContainer.classList.add('hidden');
+                document.getElementById('dialogue-next-prompt').classList.remove('hidden');
+            }
+
+            overlay.classList.remove('hidden');
+            SoundEngine.playDialogueBeep();
+        }
+
+        function startChapterCombat(chapter) {
+            gameState = 'COMBAT';
+            document.getElementById('dialogue-overlay').classList.add('hidden');
+            document.getElementById('hud-combat').classList.remove('hidden');
+
+            enemies = [];
+            bullets = [];
+
+            if (chapter === 1) {
+                document.getElementById('chapter-title').innerText = "BAB 1: PELARIAN NETWORK";
+                document.getElementById('mission-objective').innerText = "Musnahkan 10 Cyber-Guard Patroli!";
+                // Spawn wave 1
+                for (let i = 0; i < 6; i++) enemies.push(new Enemy('grunt'));
+                for (let i = 0; i < 3; i++) enemies.push(new Enemy('shooter'));
+            } else if (chapter === 3) {
+                document.getElementById('chapter-title').innerText = "BAB 3: PERTEMPURAN BOSS";
+                document.getElementById('mission-objective').innerText = "Hancurkan Kairos Mainframe Avatar!";
+                document.getElementById('boss-bar-container').classList.remove('hidden');
+                enemies.push(new Enemy('boss'));
+            }
+        }
+
+        let hackSequence = [];
+        let playerHackInput = [];
+        let hackTimer = 0;
+        let hackInterval = null;
+        const HACK_SYMBOLS = ['⚡', '🛡️', '💥', '🌀'];
+
+        function startHackingMinigame() {
+            gameState = 'HACKING';
+            document.getElementById('dialogue-overlay').classList.add('hidden');
+            const overlay = document.getElementById('hacking-overlay');
+            overlay.classList.remove('hidden');
+
+            hackSequence = [];
+            playerHackInput = [];
+            for (let i = 0; i < 5; i++) {
+                hackSequence.push(HACK_SYMBOLS[Math.floor(Math.random() * HACK_SYMBOLS.length)]);
+            }
+
+            // Render Sequence Displays
+            const seqContainer = document.getElementById('hack-sequence-container');
+            seqContainer.innerHTML = '';
+            hackSequence.forEach((sym, idx) => {
+                const node = document.createElement('div');
+                node.id = `hack-node-${idx}`;
+                node.className = "w-12 h-12 rounded-xl bg-pink-950 border border-pink-500/50 flex items-center justify-center text-xl font-bold font-orbitron text-pink-300";
+                node.innerText = sym;
+                seqContainer.appendChild(node);
+            });
+
+            // Render Input Buttons
+            const btnContainer = document.getElementById('hack-buttons');
+            btnContainer.innerHTML = '';
+            HACK_SYMBOLS.forEach(sym => {
+                const btn = document.createElement('button');
+                btn.className = "p-4 rounded-2xl glass-panel border border-pink-500/50 text-2xl hover:bg-pink-500/20 active:scale-95 transition";
+                btn.innerText = sym;
+                btn.onclick = () => handleHackInput(sym);
+                btnContainer.appendChild(btn);
+            });
+
+            // Start Timer
+            let timeLeft = 100;
+            const timerBar = document.getElementById('hack-timer-bar');
+            document.getElementById('hack-status').innerText = "INPUTKAN URUTAN NODE!";
+
+            clearInterval(hackInterval);
+            hackInterval = setInterval(() => {
+                timeLeft -= 1.5;
+                timerBar.style.width = `${Math.max(0, timeLeft)}%`;
+                if (timeLeft <= 0) {
+                    clearInterval(hackInterval);
+                    document.getElementById('hack-status').innerText = "WAKTU HABIS! RETRYING...";
+                    setTimeout(startHackingMinigame, 1000);
+                }
+            }, 100);
+        }
+
+        function handleHackInput(sym) {
+            if (gameState !== 'HACKING') return;
+
+            const currentIdx = playerHackInput.length;
+            if (sym === hackSequence[currentIdx]) {
+                playerHackInput.push(sym);
+                const node = document.getElementById(`hack-node-${currentIdx}`);
+                node.className = "w-12 h-12 rounded-xl bg-cyan-500 border border-cyan-300 flex items-center justify-center text-xl font-bold font-orbitron text-black shadow-[0_0_15px_#00f3ff]";
+                SoundEngine.playDialogueBeep();
+
+                if (playerHackInput.length === hackSequence.length) {
+                    clearInterval(hackInterval);
+                    SoundEngine.playHackSuccess();
+                    document.getElementById('hack-status').innerText = "FIREWALL BREACHED! AKSES DITERIMA!";
+                    setTimeout(() => {
+                        document.getElementById('hacking-overlay').classList.add('hidden');
+                        showDialogue(3); // Proceed to Boss chapter dialogue
+                    }, 1200);
+                }
+            } else {
+                SoundEngine.playExplosion();
+                document.getElementById('hack-status').innerText = "KODE SALAH! Ulangi urutan!";
+                playerHackInput = [];
+                hackSequence.forEach((s, idx) => {
+                    document.getElementById(`hack-node-${idx}`).className = "w-12 h-12 rounded-xl bg-pink-950 border border-pink-500/50 flex items-center justify-center text-xl font-bold font-orbitron text-pink-300";
+                });
+            }
+        }
+
+        let lastTimestamp = performance.now();
+
+        function gameLoop(timestamp) {
+            const dt = Math.min(0.1, (timestamp - lastTimestamp) / 1000);
+            lastTimestamp = timestamp;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (gameState === 'COMBAT') {
+                player.update(dt);
+                enemies.forEach(e => e.update(timestamp));
+                bullets.forEach(b => b.update());
+                particles.forEach(p => p.update(dt));
+
+                // Cleanup
+                enemies = enemies.filter(e => !e.markedForDeletion);
+                bullets = bullets.filter(b => !b.markedForDeletion);
+                particles = particles.filter(p => !p.markedForDeletion);
+
+                // Progress Chapter Triggers
+                if (currentChapter === 1 && enemies.length === 0) {
+                    currentChapter = 2;
+                    showDialogue(2);
+                } else if (currentChapter === 3) {
+                    const boss = enemies.find(e => e.type === 'boss');
+                    if (boss) {
+                        const pct = Math.max(0, (boss.hp / boss.maxHp) * 100);
+                        document.getElementById('boss-hp-bar').style.width = `${pct}%`;
+                        document.getElementById('boss-hp-text').innerText = `${Math.ceil(pct)}%`;
+                    } else if (!boss && enemies.length === 0) {
+                        triggerVictory();
+                    }
+                }
+
+                updateHUD();
+            }
+
+            // Draw World Elements
+            drawBackgroundGrid();
+            if (gameState === 'COMBAT' || gameState === 'DIALOGUE') {
+                particles.forEach(p => p.draw());
+                bullets.forEach(b => b.draw());
+                enemies.forEach(e => e.draw());
+                player.draw();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function drawBackgroundGrid() {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
+            ctx.lineWidth = 1;
+            const step = 60;
+            for (let x = 0; x < canvas.width; x += step) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += step) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function updateHUD() {
+            document.getElementById('player-hp-text').innerText = `${Math.ceil(player.hp)} / ${player.maxHp}`;
+            document.getElementById('player-hp-bar').style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
+            
+            document.getElementById('player-energy-text').innerText = `${Math.ceil(player.energy)}%`;
+            document.getElementById('player-energy-bar').style.width = `${player.energy}%`;
+
+            document.getElementById('combo-count').innerText = `${currentCombo}x`;
+        }
+
+        function startGame() {
+            SoundEngine.init();
+            player.reset();
+            enemies = [];
+            bullets = [];
+            particles = [];
+            killCount = 0;
+            maxCombo = 0;
+            currentCombo = 0;
+            currentChapter = 1;
+
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+
+            if (isTouchDevice) {
+                document.getElementById('touch-controls').classList.remove('hidden');
+            }
+
+            showDialogue(1);
+        }
+
+        function triggerGameOver() {
+            gameState = 'GAMEOVER';
+            document.getElementById('hud-combat').classList.add('hidden');
+            document.getElementById('dialogue-overlay').classList.add('hidden');
+            document.getElementById('touch-controls').classList.add('hidden');
+
+            document.getElementById('end-title').innerText = "SIGNAL LOST";
+            document.getElementById('end-title').className = "text-4xl font-black font-orbitron text-red-500 neon-text-pink mb-2";
+            document.getElementById('end-subtitle').innerText = "Mainframe Kairos menghapus keberadaan jaringanmu.";
+            document.getElementById('end-status').innerText = "GAGAL";
+
+            document.getElementById('end-combo').innerText = `${maxCombo}x`;
+            document.getElementById('end-kills').innerText = killCount;
+
+            document.getElementById('gameover-screen').classList.remove('hidden');
+        }
+
+        function triggerVictory() {
+            gameState = 'GAMEOVER';
+            document.getElementById('hud-combat').classList.add('hidden');
+            document.getElementById('dialogue-overlay').classList.add('hidden');
+            document.getElementById('touch-controls').classList.add('hidden');
+
+            document.getElementById('end-title').innerText = "SYSTEM LIBERATED!";
+            document.getElementById('end-title').className = "text-4xl font-black font-orbitron text-cyan-400 neon-text-cyan mb-2";
+            document.getElementById('end-subtitle').innerText = "Selamat! VEX-09 & A.I. Echo telah menghancurkan Kairos!";
+            document.getElementById('end-status').innerText = "SUKSES (SELESAI)";
+
+            document.getElementById('end-combo').innerText = `${maxCombo}x`;
+            document.getElementById('end-kills').innerText = killCount;
+
+            document.getElementById('gameover-screen').classList.remove('hidden');
+        }
+
+        // Event Listeners
+        document.getElementById('btn-start-game').onclick = startGame;
+        document.getElementById('btn-restart').onclick = startGame;
+        document.getElementById('btn-next-dialogue').onclick = () => {
+            const data = STORY_CHAPTERS[currentChapter];
+            if (data && data.choices && data.choices.length > 0) {
+                // Choice will handle
+            } else {
+                startChapterCombat(currentChapter);
+            }
+        };
+
+        document.getElementById('btn-audio-toggle').onclick = () => {
+            SoundEngine.muted = !SoundEngine.muted;
+            document.getElementById('btn-audio-toggle').innerText = SoundEngine.muted ? '🔇' : '🔊';
+        };
+
+        // Start Loop
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
