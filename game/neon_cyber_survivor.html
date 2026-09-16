@@ -88,6 +88,15 @@
         <div class="self-center flex flex-col items-center gap-1 mb-2">
             <div id="dash-indicator" class="text-xs font-bold text-cyan-400 font-orbitron opacity-80">DASH READY (SPACE / BUTTON)</div>
         </div>
+
+        <!-- CRITICAL MODE Warning -->
+        <div id="critical-mode" class="hidden self-center flex flex-col items-center gap-2 mb-8 pointer-events-auto transition-all duration-300">
+            <div class="text-[10px] uppercase tracking-widest text-red-500 font-bold animate-pulse">● CRITICAL MODE ACTIVE</div>
+            <div class="text-xs font-bold font-orbitron text-red-400">DAMAGE BUFF: ×2.0</div>
+            <div class="w-40 h-1 bg-gray-900 rounded-full overflow-hidden animate-pulse">
+                <div class="h-full bg-gradient-to-r from-red-500 to-red-600" style="width: 100%"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Mobile Virtual Joystick Controls -->
@@ -232,6 +241,80 @@
                         osc.stop(this.ctx.currentTime + idx * 0.06 + 0.15);
                     });
                 } catch (e) {}
+            }
+        };
+
+        // Uncapped & Persistent DDA System
+        const DDAController = {
+            difficultyScale: 1.0, // Starts at 1.0, NO UPPER CAP (scales infinitely)
+            lastPlayerX: 0,
+            lastPlayerY: 0,
+            totalDistanceMoved: 0,
+            damageTakenTotal: 0,
+            initialized: false, // Flag to prevent access to player before it exists
+            
+            update() {
+                // Safety check: don't run if player hasn't been initialized
+                if (!this.initialized || !player) return;
+                
+                // Anti-idle: track distance moved per frame
+                const currentDist = Math.hypot(player.x - this.lastPlayerX, player.y - this.lastPlayerY);
+                this.totalDistanceMoved += currentDist;
+                this.lastPlayerX = player.x;
+                this.lastPlayerY = player.y;
+
+                // Grace period: keep difficulty at baseline for the first 20s
+                // so the player has room to level up and grab early upgrades.
+                if (gameTime < 20) {
+                    this.difficultyScale = 1.0;
+                    return this.difficultyScale;
+                }
+                
+                // Scaling factor: increases with kills and movement (anti-idle)
+                const killScaling = killCount * 0.0004; // +0.0004 per kill (was 0.001)
+                const movementScaling = this.totalDistanceMoved * 0.00003; // +0.00003 per pixel (was 0.0001)
+                const spikeScaling = (killCount > 500 && this.damageTakenTotal < 10) ? 0.1 : 0; // Anti-overpowered spike
+                
+                // Apply upward scaling (always increases with gameplay)
+                this.difficultyScale = Math.max(1.0, this.difficultyScale + killScaling + movementScaling + spikeScaling);
+                
+                // Decay ONLY when HP < 10% (critical threshold)
+                if (player.hp < player.maxHp * 0.1) {
+                    this.difficultyScale *= 0.999; // Slow decay (30-60 seconds at 10% HP)
+                }
+                
+                // Ensure minimum of 1.0
+                this.difficultyScale = Math.max(1.0, this.difficultyScale);
+                
+                // Log for debugging
+                if (Math.random() < 0.005) {
+                    console.log(`DDA: difficultyScale=${this.difficultyScale.toFixed(2)}, kills=${killCount}, dist=${this.totalDistanceMoved.toFixed(0)}`);
+                }
+                
+                return this.difficultyScale;
+            },
+            
+            recordDamage(amount) {
+                this.damageTakenTotal += amount;
+            },
+            
+            getSpawnRateMultiplier() {
+                return this.difficultyScale; // More enemies as difficulty increases
+            },
+            
+            getEnemyDamageMultiplier() {
+                return this.difficultyScale; // Enemies hit harder
+            },
+            
+            getEnemySpeedMultiplier() {
+                return this.difficultyScale; // Enemies move faster
+            },
+            
+            getPlayerDamageMultiplier() {
+                // High Risk, High Reward: massive damage when HP < 10%
+                // Safety check: default to 1.0 if player doesn't exist
+                if (!player) return 1.0;
+                return player.hp < player.maxHp * 0.1 ? 2.0 : 1.0;
             }
         };
 
@@ -448,13 +531,16 @@
                     targetAngle = joystick.active ? Math.atan2(joystick.dy, joystick.dx) : 0;
                 }
 
+                // Apply uncapped damage multiplier (×2.0 when HP < 10%)
+                const effectiveDamage = this.bulletDamage * DDAController.getPlayerDamageMultiplier();
+
                 // Multi-bullet spread
                 const spread = 0.15;
                 const startAngle = targetAngle - ((this.bulletCount - 1) * spread) / 2;
 
                 for (let i = 0; i < this.bulletCount; i++) {
                     const angle = startAngle + i * spread;
-                    bullets.push(new Bullet(this.x, this.y, angle, this.bulletSpeed, this.bulletDamage));
+                    bullets.push(new Bullet(this.x, this.y, angle, this.bulletSpeed, effectiveDamage));
                 }
 
                 SoundEngine.playLaser();
@@ -569,30 +655,33 @@
                 this.type = type;
                 this.markedForDeletion = false;
 
+                // Apply uncapped difficulty scaling
+                const scale = DDAController.difficultyScale;
+
                 if (type === 'boss') {
                     this.radius = 35;
-                    this.speed = 1.2;
-                    this.hp = 600 + gameTime * 5;
+                    this.speed = 1.2 * scale;
+                    this.hp = (600 + gameTime * 5) * scale;
                     this.maxHp = this.hp;
                     this.color = '#ff0055';
                     this.xpValue = 100;
-                    this.damage = 25;
+                    this.damage = 25 * scale;
                 } else if (type === 'fast') {
                     this.radius = 10;
-                    this.speed = 3.5;
-                    this.hp = 25 + gameTime * 0.2;
+                    this.speed = 3.5 * scale;
+                    this.hp = (25 + gameTime * 0.2) * scale;
                     this.maxHp = this.hp;
                     this.color = '#ffcc00';
                     this.xpValue = 15;
-                    this.damage = 8;
+                    this.damage = 8 * scale;
                 } else { // Standard Drone
                     this.radius = 14;
-                    this.speed = 2.0;
-                    this.hp = 45 + gameTime * 0.3;
+                    this.speed = 2.0 * scale;
+                    this.hp = (45 + gameTime * 0.3) * scale;
                     this.maxHp = this.hp;
                     this.color = '#ff0055';
                     this.xpValue = 20;
-                    this.damage = 12;
+                    this.damage = 12 * scale;
                 }
             }
 
@@ -606,6 +695,7 @@
                 if (d < player.radius + this.radius) {
                     if (!player.isDashing) {
                         player.hp -= this.damage * 0.05;
+                        DDAController.recordDamage(this.damage * 0.05);
                     }
                 }
             }
@@ -735,11 +825,13 @@
         let bossSpawned = false;
 
         function spawnManager(now) {
-            const spawnRate = Math.max(300, 1500 - gameTime * 20);
+            const baseSpawnRate = Math.max(400, 1900 - gameTime * 15);
+            const spawnRate = baseSpawnRate / DDAController.difficultyScale;
 
             if (now - lastSpawn > spawnRate) {
                 const rand = Math.random();
-                if (rand < 0.3) {
+                // Spawn more fast enemies at high difficulty
+                if (rand < 0.25 + Math.min(0.5, DDAController.difficultyScale * 0.15)) {
                     enemies.push(new Enemy('fast'));
                 } else {
                     enemies.push(new Enemy('drone'));
@@ -810,6 +902,9 @@
                 player.update();
                 spawnManager(performance.now());
 
+                // DDA update and UI feedback
+                DDAController.update();
+
                 // Bullet updates & collision
                 bullets.forEach(b => b.update());
                 enemies.forEach(e => e.update());
@@ -870,6 +965,14 @@
             const secs = Math.floor(gameTime % 60).toString().padStart(2, '0');
             document.getElementById('timer-text').innerText = `${mins}:${secs}`;
 
+            // CRITICAL MODE indicator (HP < 10%)
+            const criticalMode = document.getElementById('critical-mode');
+            if (player.hp < player.maxHp * 0.1) {
+                criticalMode.classList.remove('hidden');
+            } else {
+                criticalMode.classList.add('hidden');
+            }
+
             // Dash Cooldown Indicator
             const dashRatio = Math.min(1, (Date.now() - player.lastDash) / player.dashCooldown);
             const dashInd = document.getElementById('dash-indicator');
@@ -891,6 +994,14 @@
             particles = [];
             gameTime = 0;
             killCount = 0;
+
+            // Initialize DDA after player is fully reset
+            DDAController.initialized = true;
+            DDAController.difficultyScale = 1.0;
+            DDAController.totalDistanceMoved = 0;
+            DDAController.damageTakenTotal = 0;
+            DDAController.lastPlayerX = player.x;
+            DDAController.lastPlayerY = player.y;
 
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('gameover-screen').classList.add('hidden');
