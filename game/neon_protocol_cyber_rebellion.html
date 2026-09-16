@@ -104,6 +104,12 @@
                 <div id="mission-objective" class="text-xs font-orbitron text-cyan-200">Musnahkan Patroli Cyber-Guard!</div>
             </div>
 
+            <!-- Diamond Counter -->
+            <div class="glass-panel px-4 py-3 rounded-2xl text-center min-w-[100px]">
+                <div class="text-[10px] font-orbitron text-cyan-400 font-bold tracking-wider">💎 DIAMOND</div>
+                <div id="diamond-count-hud" class="text-2xl font-black font-orbitron text-cyan-300 neon-text-cyan">5</div>
+            </div>
+
             <!-- Combo & Boss HP -->
             <div class="flex items-center gap-3 pointer-events-auto">
                 <div class="glass-panel px-4 py-3 rounded-2xl text-center min-w-[100px]">
@@ -228,6 +234,39 @@
             <button id="btn-start-game" class="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-pink-500 text-white font-orbitron font-black text-lg tracking-wider hover:brightness-110 active:scale-95 transition shadow-[0_0_35px_rgba(0,243,255,0.6)]">
                 MULAI OPERASI PEMBERONTAKAN
             </button>
+        </div>
+    </div>
+
+    <!-- Revive Overlay -->
+    <div id="revive-overlay" class="absolute inset-0 z-50 flex items-center justify-center bg-red-950/70 backdrop-blur-md p-4 hidden">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-8 border-2 border-red-500/80 text-center flex flex-col items-center gap-6 shadow-[0_0_60px_rgba(255,0,85,0.5)]">
+            <div>
+                <div class="text-xs font-orbitron text-red-400 tracking-widest font-black">⚠️ CRITICAL SIGNAL LOSS</div>
+                <h2 class="text-3xl font-black font-orbitron text-red-500 neon-text-pink mt-2">SISTEM KRITIS</h2>
+                <p class="text-gray-300 text-sm mt-2">VEX-09 kehilangan integritas. Revive untuk lanjut bertempur?</p>
+            </div>
+
+            <div class="w-full bg-gray-950 rounded-2xl p-4 border border-cyan-500/40">
+                <div class="flex justify-between items-center">
+                    <div class="text-left">
+                        <div class="text-[10px] font-orbitron text-cyan-400 tracking-wider">DIAMOND</div>
+                        <div id="revive-diamond-count" class="text-2xl font-black font-orbitron text-cyan-300">💎 5</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] font-orbitron text-pink-400 tracking-wider">BIAYA REVIVE</div>
+                        <div id="revive-cost-display" class="text-2xl font-black font-orbitron text-pink-500">💎 3</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full flex flex-col gap-2">
+                <button id="btn-revive" class="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-orbitron font-black text-sm tracking-wider hover:brightness-110 active:scale-95 transition shadow-[0_0_25px_rgba(0,243,255,0.6)]">
+                    ⚡ REVIVE (3 💎)
+                </button>
+                <button id="btn-give-up" class="w-full py-3 rounded-2xl bg-red-950/80 border border-red-500/50 text-red-400 font-orbitron font-bold text-xs hover:bg-red-900/80 transition">
+                    MENYERAH
+                </button>
+            </div>
         </div>
     </div>
 
@@ -370,6 +409,67 @@
         let currentCombo = 0;
         let currentChapter = 1;
 
+        // ═══════════════════════════════════════════════════════════
+        // DIAMOND & REVIVE SYSTEM
+        // ═══════════════════════════════════════════════════════════
+        let diamonds = 5;
+        let reviveCount = 0;
+        let isReviving = false;
+        const REVIVE_BASE_COST = 3;
+        const REVIVE_COST_INCREMENT = 2;
+
+        function getReviveCost() {
+            return REVIVE_BASE_COST + reviveCount * REVIVE_COST_INCREMENT;
+        }
+
+        function addDiamonds(amount) {
+            diamonds += amount;
+            const el = document.getElementById('diamond-count-hud');
+            if (el) el.innerText = diamonds;
+        }
+
+        function updateDiamondHUD() {
+            const el = document.getElementById('diamond-count-hud');
+            if (el) el.innerText = diamonds;
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // FLOATING TEXT SYSTEM
+        // ═══════════════════════════════════════════════════════════
+        let floatingTexts = [];
+
+        class FloatingText {
+            constructor(x, y, text, color = '#00f3ff', size = 22) {
+                this.x = x; this.y = y;
+                this.text = text; this.color = color; this.size = size;
+                this.life = 1.5; this.maxLife = 1.5;
+                this.vy = -1.2;
+                this.markedForDeletion = false;
+            }
+            update(dt) {
+                this.y += this.vy;
+                this.vy *= 0.97;
+                this.life -= dt;
+                if (this.life <= 0) this.markedForDeletion = true;
+            }
+            draw() {
+                const t = this.life / this.maxLife;
+                ctx.save();
+                ctx.globalAlpha = Math.min(1, t * 2);
+                ctx.font = `bold ${this.size}px Orbitron`;
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = this.color;
+                ctx.textAlign = 'center';
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        function spawnFloatingText(x, y, text, color, size = 22) {
+            floatingTexts.push(new FloatingText(x, y, text, color, size));
+        }
+
         // Resize Canvas
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -470,6 +570,9 @@
                 // Stat Boosts from Visual Novel Decisions
                 this.damageMult = 1.0;
                 this.defenseMult = 1.0;
+
+                // Invulnerability after revive
+                this.invulnUntil = 0;
             }
 
             reset() {
@@ -481,6 +584,7 @@
                 this.isDashing = false;
                 this.damageMult = 1.0;
                 this.defenseMult = 1.0;
+                this.invulnUntil = 0;
             }
 
             dash() {
@@ -664,6 +768,8 @@
                     this.hp = 1200;
                     this.color = '#ff0055';
                     this.lastShot = 0;
+                    this.diamondMilestones = [0.75, 0.50, 0.25];
+                    this.givenMilestones = new Set();
                 } else if (type === 'shooter') {
                     this.radius = 16;
                     this.speed = 2.0;
@@ -714,11 +820,11 @@
                     // Melee Hit Player
                     const d = Math.hypot(player.x - this.x, player.y - this.y);
                     if (d < player.radius + this.radius) {
-                        if (!player.isDashing) {
+                        if (!player.isDashing && Date.now() > player.invulnUntil) {
                             player.hp -= 12 * player.defenseMult;
                             createParticles(player.x, player.y, '#ff0055', 6);
                             currentCombo = 0;
-                            if (player.hp <= 0) triggerGameOver();
+                            if (player.hp <= 0) triggerRevive();
                         }
                     }
                 }
@@ -727,11 +833,30 @@
             takeDamage(amount) {
                 this.hp -= amount;
                 createParticles(this.x, this.y, this.color, 5);
+
+                // Boss diamond milestones
+                if (this.type === 'boss') {
+                    const hpPct = this.hp / this.maxHp;
+                    this.diamondMilestones.forEach(m => {
+                        if (hpPct <= m && !this.givenMilestones.has(m) && this.hp > 0) {
+                            this.givenMilestones.add(m);
+                            addDiamonds(3);
+                            spawnFloatingText(this.x, this.y - 40, '+3 💎', '#00f3ff', 26);
+                            SoundEngine.playHackSuccess();
+                        }
+                    });
+                }
+
                 if (this.hp <= 0 && !this.markedForDeletion) {
                     this.markedForDeletion = true;
                     killCount++;
                     SoundEngine.playExplosion();
                     createParticles(this.x, this.y, this.color, 15);
+
+                    if (this.type === 'boss') {
+                        addDiamonds(15);
+                        spawnFloatingText(this.x, this.y - 20, '+15 💎 BOSS REWARD', '#ffb700', 28);
+                    }
                 }
             }
 
@@ -787,11 +912,11 @@
                     });
                 } else {
                     if (Math.hypot(player.x - this.x, player.y - this.y) < player.radius + this.radius) {
-                        if (!player.isDashing) {
+                        if (!player.isDashing && Date.now() > player.invulnUntil) {
                             player.hp -= 10 * player.defenseMult;
                             currentCombo = 0;
                             createParticles(player.x, player.y, '#ff0055', 6);
-                            if (player.hp <= 0) triggerGameOver();
+                            if (player.hp <= 0) triggerRevive();
                         }
                         this.markedForDeletion = true;
                     }
@@ -1045,11 +1170,13 @@
                 enemies.forEach(e => e.update(timestamp));
                 bullets.forEach(b => b.update());
                 particles.forEach(p => p.update(dt));
+                floatingTexts.forEach(ft => ft.update(dt));
 
                 // Cleanup
                 enemies = enemies.filter(e => !e.markedForDeletion);
                 bullets = bullets.filter(b => !b.markedForDeletion);
                 particles = particles.filter(p => !p.markedForDeletion);
+                floatingTexts = floatingTexts.filter(ft => !ft.markedForDeletion);
 
                 // Progress Chapter Triggers
                 if (currentChapter === 1 && enemies.length === 0) {
@@ -1075,6 +1202,7 @@
                 particles.forEach(p => p.draw());
                 bullets.forEach(b => b.draw());
                 enemies.forEach(e => e.draw());
+                floatingTexts.forEach(ft => ft.draw());
                 player.draw();
             }
 
@@ -1122,6 +1250,14 @@
             currentCombo = 0;
             currentChapter = 1;
 
+            // Reset diamond & revive system
+            diamonds = 5;
+            reviveCount = 0;
+            isReviving = false;
+            floatingTexts = [];
+
+            updateDiamondHUD();
+
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('gameover-screen').classList.add('hidden');
 
@@ -1149,6 +1285,88 @@
             document.getElementById('gameover-screen').classList.remove('hidden');
         }
 
+        function triggerRevive() {
+            if (isReviving) return;
+            if (gameState !== 'COMBAT') return;
+            isReviving = true;
+
+            // Pause combat
+            gameState = 'REVIVE';
+
+            const cost = getReviveCost();
+            document.getElementById('revive-diamond-count').innerText = `💎 ${diamonds}`;
+            document.getElementById('revive-cost-display').innerText = `💎 ${cost}`;
+
+            const reviveBtn = document.getElementById('btn-revive');
+            if (diamonds >= cost) {
+                reviveBtn.disabled = false;
+                reviveBtn.className = "w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-orbitron font-black text-sm tracking-wider hover:brightness-110 active:scale-95 transition shadow-[0_0_25px_rgba(0,243,255,0.6)]";
+                reviveBtn.innerText = `⚡ REVIVE (${cost} 💎)`;
+            } else {
+                reviveBtn.disabled = true;
+                reviveBtn.className = "w-full py-4 rounded-2xl bg-gray-800 text-gray-500 font-orbitron font-black text-sm tracking-wider cursor-not-allowed opacity-50";
+                reviveBtn.innerText = `💎 DIAMOND KURANG (butuh ${cost})`;
+            }
+
+            document.getElementById('revive-overlay').classList.remove('hidden');
+            document.getElementById('hud-combat').classList.add('hidden');
+            document.getElementById('touch-controls').classList.add('hidden');
+        }
+
+        function performRevive() {
+            const cost = getReviveCost();
+            if (diamonds < cost) return;
+
+            diamonds -= cost;
+            reviveCount++;
+            isReviving = false;
+
+            // Restore player
+            player.hp = player.maxHp * 0.6;
+            player.energy = 100;
+
+            // Shockwave — bunuh musuh sekitar, stun boss
+            const shockwaveRadius = 280;
+            enemies.forEach(e => {
+                const d = Math.hypot(e.x - player.x, e.y - player.y);
+                if (d < shockwaveRadius) {
+                    if (e.type === 'boss') {
+                        e.takeDamage(80);
+                    } else {
+                        e.takeDamage(9999);
+                    }
+                }
+            });
+
+            // Clear enemy bullets
+            bullets.forEach(b => {
+                if (!b.isPlayerBullet) b.markedForDeletion = true;
+            });
+
+            // Visual FX
+            createParticles(player.x, player.y, '#00f3ff', 50);
+            createParticles(player.x, player.y, '#ff0055', 40);
+            SoundEngine.playHackSuccess();
+            spawnFloatingText(player.x, player.y - 50, '⚡ REVIVED!', '#00f3ff', 32);
+
+            // 2.5s invulnerability
+            player.invulnUntil = Date.now() + 2500;
+
+            // Restore UI
+            document.getElementById('revive-overlay').classList.add('hidden');
+            document.getElementById('hud-combat').classList.remove('hidden');
+            if (isTouchDevice) document.getElementById('touch-controls').classList.remove('hidden');
+
+            updateDiamondHUD();
+            gameState = 'COMBAT';
+        }
+
+        function giveUp() {
+            isReviving = false;
+            document.getElementById('revive-overlay').classList.add('hidden');
+            triggerGameOver();
+        }
+
         function triggerVictory() {
             gameState = 'GAMEOVER';
             document.getElementById('hud-combat').classList.add('hidden');
@@ -1169,6 +1387,8 @@
         // Event Listeners
         document.getElementById('btn-start-game').onclick = startGame;
         document.getElementById('btn-restart').onclick = startGame;
+        document.getElementById('btn-revive').onclick = performRevive;
+        document.getElementById('btn-give-up').onclick = giveUp;
         document.getElementById('btn-next-dialogue').onclick = () => {
             const data = STORY_CHAPTERS[currentChapter];
             if (data && data.choices && data.choices.length > 0) {
