@@ -222,8 +222,8 @@
         </div>
     </div>
 
+    <!-- Synthesized Web Audio API Sound System -->
     <script>
-        // Synthesized Web Audio API Sound System
         const SoundEngine = {
             ctx: null,
             muted: false,
@@ -317,6 +317,150 @@
             }
         };
 
+        // ═══════════════════════════════════════════════════════════════════
+        // DYNAMIC DIFFICULTY ADJUSTMENT (DDA) — versi Tower Defense
+        // ═══════════════════════════════════════════════════════════════════
+        const DDAController = {
+            difficultyScale: 1.0,
+            initialized: false,
+
+            // Wave tracking
+            waveStartHp: 100,
+            leaksThisWave: 0,
+            totalLeaks: 0,
+            totalDamageTaken: 0,
+            wavesCleared: 0,
+            perfectWaves: 0,
+            strugglingWaves: 0,
+            lastWaveEndTime: 0,
+
+            // Practical caps untuk TD (wave-based, jadi jangan terlalu ekstrem)
+            MIN_SCALE: 0.70,
+            MAX_SCALE: 3.50,
+
+            startWave() {
+                this.waveStartHp = coreHp;
+                this.leaksThisWave = 0;
+                this.lastWaveEndTime = Date.now();
+            },
+
+            endWave() {
+                if (!this.initialized) return;
+
+                this.wavesCleared++;
+                const hpLost = this.waveStartHp - coreHp;
+                let delta = 0;
+                let label = '';
+
+                // ── Evaluasi performa ──
+                if (this.leaksThisWave === 0 && hpLost === 0) {
+                    // Sempurna: nggak ada yang bocor + core full HP
+                    delta = 0.12;
+                    this.perfectWaves++;
+                    label = 'PERFECT';
+                } else if (this.leaksThisWave === 0 && hpLost < 5) {
+                    // Dominan
+                    delta = 0.08;
+                    label = 'DOMINATING';
+                } else if (this.leaksThisWave >= 3 || hpLost > 25) {
+                    // Kewalahan
+                    delta = -0.10;
+                    this.strugglingWaves++;
+                    label = 'STRUGGLING';
+                } else if (this.leaksThisWave >= 1 || hpLost > 10) {
+                    // Cukup berat
+                    delta = -0.05;
+                    label = 'TENSE';
+                } else {
+                    // Normal
+                    delta = 0.02;
+                    label = 'STEADY';
+                }
+
+                this.difficultyScale = Math.max(
+                    this.MIN_SCALE,
+                    Math.min(this.MAX_SCALE, this.difficultyScale + delta)
+                );
+
+                console.log(
+                    `DDA wave ${currentWave}: ${label} | leaks=${this.leaksThisWave} hpLost=${hpLost} → scale=${this.difficultyScale.toFixed(2)}`
+                );
+
+                // Notifikasi melayang
+                spawnFloatingText(
+                    canvas.width / 2,
+                    canvas.height / 2 - 80,
+                    `WAVE CLEARED — ${label}`,
+                    label === 'STRUGGLING' || label === 'TENSE' ? '#ff0055' : '#00f3ff',
+                    28
+                );
+            },
+
+            recordLeak(damage) {
+                this.leaksThisWave++;
+                this.totalLeaks++;
+                this.totalDamageTaken += damage;
+            },
+
+            // ── Multipliers yang dipakai di spawner & Enemy ──
+            getHpMultiplier()     { return this.difficultyScale; },
+            getSpeedMultiplier()  { return 1 + (this.difficultyScale - 1) * 0.45; }, // lebih kalem
+            getDamageMultiplier() { return 1 + (this.difficultyScale - 1) * 0.60; },
+            getSpawnMultiplier()  { return 1 + (this.difficultyScale - 1) * 0.50; },
+
+            // Soft-assist: kalau core hampir mati, kecilkan skala sedikit demi sedikit
+            assistTick(dt) {
+                if (!this.initialized) return;
+                if (coreHp < maxCoreHp * 0.3 && this.difficultyScale > this.MIN_SCALE) {
+                    this.difficultyScale = Math.max(
+                        this.MIN_SCALE,
+                        this.difficultyScale - dt * 0.05
+                    );
+                }
+            }
+        };
+
+        // ═══════════════════════════════════════════════════════════════════
+        // FLOATING TEXT — untuk "CLOSE CALL!", "BREACH!", "PERFECT WAVE!" dll
+        // ═══════════════════════════════════════════════════════════════════
+        let floatingTexts = [];
+
+        class FloatingText {
+            constructor(x, y, text, color = '#00f3ff', size = 22) {
+                this.x = x;
+                this.y = y;
+                this.text = text;
+                this.color = color;
+                this.size = size;
+                this.life = 1.6;
+                this.maxLife = 1.6;
+                this.vy = -1.4;
+                this.markedForDeletion = false;
+            }
+            update(dt) {
+                this.y += this.vy;
+                this.vy *= 0.97;
+                this.life -= dt;
+                if (this.life <= 0) this.markedForDeletion = true;
+            }
+            draw() {
+                const t = this.life / this.maxLife;
+                ctx.save();
+                ctx.globalAlpha = Math.min(1, t * 2); // fade out di akhir
+                ctx.font = `bold ${this.size}px Orbitron`;
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = this.color;
+                ctx.textAlign = 'center';
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        function spawnFloatingText(x, y, text, color = '#00f3ff', size = 22) {
+            floatingTexts.push(new FloatingText(x, y, text, color, size));
+        }
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -397,34 +541,43 @@
                 this.x = pixelPath[0].x;
                 this.y = pixelPath[0].y;
 
+                // ── Terapkan DDA multiplier ──
+                const hpMult = healthMultiplier * DDAController.getHpMultiplier();
+                const speedMult = DDAController.getSpeedMultiplier();
+                const dmgMult = DDAController.getDamageMultiplier();
+
                 if (type === 'fast') {
-                    this.speed = 2.2;
-                    this.maxHp = 45 * healthMultiplier;
+                    this.baseSpeed = 2.2;
+                    this.speed = this.baseSpeed * speedMult;
+                    this.maxHp = 45 * hpMult;
                     this.radius = 10;
                     this.color = '#38bdf8';
                     this.reward = 15;
-                    this.damage = 6;
+                    this.damage = 6 * dmgMult;
                 } else if (type === 'tank') {
-                    this.speed = 0.9;
-                    this.maxHp = 220 * healthMultiplier;
+                    this.baseSpeed = 0.9;
+                    this.speed = this.baseSpeed * speedMult;
+                    this.maxHp = 220 * hpMult;
                     this.radius = 18;
                     this.color = '#f43f5e';
                     this.reward = 35;
-                    this.damage = 20;
+                    this.damage = 20 * dmgMult;
                 } else if (type === 'boss') {
-                    this.speed = 0.6;
-                    this.maxHp = 800 * healthMultiplier;
+                    this.baseSpeed = 0.6;
+                    this.speed = this.baseSpeed * speedMult;
+                    this.maxHp = 800 * hpMult;
                     this.radius = 26;
                     this.color = '#e11d48';
                     this.reward = 120;
-                    this.damage = 45;
+                    this.damage = 45 * dmgMult;
                 } else { // Standard Malware
-                    this.speed = 1.4;
-                    this.maxHp = 80 * healthMultiplier;
+                    this.baseSpeed = 1.4;
+                    this.speed = this.baseSpeed * speedMult;
+                    this.maxHp = 80 * hpMult;
                     this.radius = 13;
                     this.color = '#fbbf24';
                     this.reward = 20;
-                    this.damage = 10;
+                    this.damage = 10 * dmgMult;
                 }
 
                 this.hp = this.maxHp;
@@ -432,6 +585,7 @@
                 this.slowFactor = 1;
                 this.stunTimer = 0;
                 this.markedForDeletion = false;
+                this.wasNearMissTriggered = false;
             }
 
             update(dt) {
@@ -461,10 +615,12 @@
                     this.pathIndex++;
 
                     if (this.pathIndex >= pixelPath.length - 1) {
-                        // Reached Core
+                        // Reached Core — LEAK!
                         coreHp -= this.damage;
+                        DDAController.recordLeak(this.damage);
                         createParticles(this.x, this.y, '#ff0055', 12);
                         SoundEngine.playExplosion();
+                        spawnFloatingText(this.x, this.y - 30, `BREACH! -${Math.ceil(this.damage)} HP`, '#ff0055', 18);
                         this.markedForDeletion = true;
                         if (coreHp <= 0) {
                             coreHp = 0;
@@ -482,6 +638,37 @@
                 createParticles(this.x, this.y, this.color, 3);
                 if (this.hp <= 0 && !this.markedForDeletion) {
                     this.markedForDeletion = true;
+
+                    // ═══════════════════════════════════════════════════════
+                    // NEAR-MISS / CLUTCH-KILL DETECTION
+                    // Kalau musuh mati dekat core, itu momen epik → reward
+                    // ═══════════════════════════════════════════════════════
+                    const corePos = pixelPath[pixelPath.length - 1];
+                    const distToCore = Math.hypot(this.x - corePos.x, this.y - corePos.y);
+                    const nearMissRadius = cellSize * 1.8;
+
+                    if (distToCore < nearMissRadius) {
+                        const bonus = Math.floor(this.reward * 0.75);
+                        dataCores += bonus;
+                        score += 500;
+
+                        // Visual + audio berbeda biar kerasa "clutch"
+                        spawnFloatingText(
+                            this.x, this.y - 20,
+                            'CLOSE CALL!',
+                            '#ffb700',
+                            24
+                        );
+                        spawnFloatingText(
+                            this.x, this.y + 8,
+                            `+${bonus} 💎 BONUS`,
+                            '#ffb700',
+                            14
+                        );
+                        createParticles(this.x, this.y, '#ffb700', 25);
+                        SoundEngine.playBuild(); // suara distinct
+                    }
+
                     dataCores += this.reward;
                     score += this.reward * 5;
                     totalKills++;
@@ -525,6 +712,20 @@
                     ctx.fillRect(this.x - barW / 2, this.y - this.radius - 8, barW, barH);
                     ctx.fillStyle = '#00f3ff';
                     ctx.fillRect(this.x - barW / 2, this.y - this.radius - 8, barW * (this.hp / this.maxHp), barH);
+                }
+
+                // Warning ring kalau musuh mendekati core dengan HP rendah
+                const corePos = pixelPath[pixelPath.length - 1];
+                const distToCore = Math.hypot(this.x - corePos.x, this.y - corePos.y);
+                if (distToCore < cellSize * 2 && this.hp < this.maxHp * 0.3) {
+                    ctx.save();
+                    const pulse = 0.6 + Math.sin(Date.now() / 120) * 0.4;
+                    ctx.strokeStyle = `rgba(255, 183, 0, ${pulse})`;
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius + 8 + pulse * 4, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
                 }
 
                 ctx.restore();
@@ -944,7 +1145,9 @@
             isWaveActive = true;
             waveQueue = [];
 
-            const count = 8 + currentWave * 4;
+            // ── Terapkan DDA spawn multiplier ──
+            const ddaCount = DDAController.getSpawnMultiplier();
+            const count = Math.floor((8 + currentWave * 4) * ddaCount);
             const healthMult = Math.pow(1.25, currentWave - 1);
 
             for (let i = 0; i < count; i++) {
@@ -960,6 +1163,19 @@
             }
 
             spawnTimer = 0;
+
+            // Notifkan DDA start
+            DDAController.startWave();
+
+            // Tampilkan skala kesulitan
+            const scale = DDAController.difficultyScale;
+            const label = scale > 1.5 ? '⚠️ HARD' : scale < 0.85 ? '🛡️ ASSIST' : '⚔️ NORMAL';
+            spawnFloatingText(
+                canvas.width / 2, 120,
+                `DIFFICULTY: ${label} (${scale.toFixed(2)}x)`,
+                scale > 1.5 ? '#ff0055' : scale < 0.85 ? '#00f3ff' : '#ffb700',
+                20
+            );
         }
 
         document.getElementById('btn-start-wave').onclick = () => {
@@ -998,6 +1214,10 @@
                 } else if (isWaveActive && waveQueue.length === 0 && enemies.length === 0) {
                     // Wave Cleared
                     isWaveActive = false;
+
+                    // Evaluasi DDA setelah wave selesai
+                    DDAController.endWave();
+
                     currentWave++;
                     dataCores += 50 + currentWave * 10;
                     if (currentWave > maxWave) {
@@ -1016,6 +1236,13 @@
                 projectiles = projectiles.filter(p => !p.markedForDeletion);
                 particles = particles.filter(p => !p.markedForDeletion);
 
+                // Update floating texts
+                floatingTexts.forEach(ft => ft.update(dt));
+                floatingTexts = floatingTexts.filter(ft => !ft.markedForDeletion);
+
+                // DDA assist tick — kalau core hampir mati, kecilkan kesulitan pelan-pelan
+                DDAController.assistTick(dt);
+
                 updateHUD();
             }
 
@@ -1025,6 +1252,7 @@
             enemies.forEach(e => e.draw());
             projectiles.forEach(p => p.draw());
             particles.forEach(p => p.draw());
+            floatingTexts.forEach(ft => ft.draw());
 
             drawHoverHighlight();
 
@@ -1149,14 +1377,29 @@
             enemies = [];
             projectiles = [];
             particles = [];
-            isWaveActive = false;
+            floatingTexts = [];
 
+            // Reset DDA state
+            DDAController.difficultyScale = 1.0;
+            DDAController.initialized = true;
+            DDAController.waveStartHp = maxCoreHp;
+            DDAController.leaksThisWave = 0;
+            DDAController.totalLeaks = 0;
+            DDAController.totalDamageTaken = 0;
+            DDAController.wavesCleared = 0;
+            DDAController.perfectWaves = 0;
+            DDAController.strugglingWaves = 0;
+            DDAController.lastWaveEndTime = Date.now();
+
+            // ── Kembalikan UI visibility & setup ──
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('gameover-screen').classList.add('hidden');
             document.getElementById('hud-top').classList.remove('hidden');
             document.getElementById('hud-bottom').classList.remove('hidden');
 
             setupTowerShopUI();
+
+            isWaveActive = false;
             gameState = 'PLAYING';
         }
 
@@ -1167,7 +1410,7 @@
             hideNodeModal();
 
             const title = document.getElementById('gameover-title');
-            const sub = document.getElementById('gameover-[#gameover-subtitle]');
+            const sub = document.getElementById('gameover-subtitle');
 
             if (isWin) {
                 title.innerText = "SYSTEM SECURED!";
