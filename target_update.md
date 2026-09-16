@@ -1,340 +1,224 @@
-ada 1 design flaw yang perlu lu sadari dulu sebelum implementasi:
+Diagnosa cepat: Chapter 1 spawn 9 musuh sekaligus dari semua sisi, sementara attack arc lu cuma ~±72°. Player literally ketar-ketir dari 4 arah, gak bisa cover semua. Bukan DDA yang bikin susah — DDA start dari 1.0x.
 
-⚠️ Masalah ekonomi diamond
-Kalau diamond cuma dari boss, dan cuma ada 1 boss, maka:
-
-Chapter 1 & 2: lu mati → 0 diamond → nggak bisa revive sama sekali
-
-Chapter 3: lu mati sebelum boss mati → masih 0 diamond
-
-Artinya sistem revive-nya nggak akan kepakai di run pertama. Harus ada sumber diamond tambahan.
-
-💡 Solusi desain yang gue sarankan
-Sumber	Jumlah	Kapan
-Starter	5 💎	Pas mulai game
-Boss damage milestone	+3 💎	Tiap kali boss HP turun ke 75% / 50% / 25%
-Boss kill	+15 💎	Setelah boss mati (bonus for next run)
-Revive cost	3, 5, 7, 9...	Naik tiap revive
-Jadi di boss fight, lu udah punya 5 + 9 = 14 💎 — cukup buat 2-3 revive. Ini bikin mechanic-nya beneran kerasa.
-
-Kalau lu setuju, ini implementasinya.
-
-📍 SECTION 1 — HTML (tambah 2 elemen)
-1a. Diamond counter di HUD
-Cari di hud-combat blok ini (Combo counter):
-
-html
-<div class="glass-panel px-4 py-3 rounded-2xl text-center min-w-[100px]">
-    <div class="text-[10px] font-orbitron text-pink-400 font-bold tracking-wider">COMBO</div>
-    <div id="combo-count" class="text-2xl font-black font-orbitron text-pink-500 neon-text-pink">0x</div>
-</div>
-Tambahkan SEBELUM blok itu:
-
-html
-<div class="glass-panel px-4 py-3 rounded-2xl text-center min-w-[100px]">
-    <div class="text-[10px] font-orbitron text-cyan-400 font-bold tracking-wider">💎 DIAMOND</div>
-    <div id="diamond-count-hud" class="text-2xl font-black font-orbitron text-cyan-300 neon-text-cyan">5</div>
-</div>
-1b. Revive overlay
-Cari <!-- Game Over Screen --> (atau <div id="gameover-screen"). Tambahkan SEBELUM elemen itu:
-
-html
-<!-- Revive Overlay -->
-<div id="revive-overlay" class="absolute inset-0 z-50 flex items-center justify-center bg-red-950/70 backdrop-blur-md p-4 hidden">
-    <div class="glass-panel max-w-md w-full rounded-3xl p-8 border-2 border-red-500/80 text-center flex flex-col items-center gap-6 shadow-[0_0_60px_rgba(255,0,85,0.5)]">
-        <div>
-            <div class="text-xs font-orbitron text-red-400 tracking-widest font-black">⚠️ CRITICAL SIGNAL LOSS</div>
-            <h2 class="text-3xl font-black font-orbitron text-red-500 neon-text-pink mt-2">SISTEM KRITIS</h2>
-            <p class="text-gray-300 text-sm mt-2">VEX-09 kehilangan integritas. Revive untuk lanjut bertempur?</p>
-        </div>
-
-        <div class="w-full bg-gray-950 rounded-2xl p-4 border border-cyan-500/40">
-            <div class="flex justify-between items-center">
-                <div class="text-left">
-                    <div class="text-[10px] font-orbitron text-cyan-400 tracking-wider">DIAMOND</div>
-                    <div id="revive-diamond-count" class="text-2xl font-black font-orbitron text-cyan-300">💎 5</div>
-                </div>
-                <div class="text-right">
-                    <div class="text-[10px] font-orbitron text-pink-400 tracking-wider">BIAYA REVIVE</div>
-                    <div id="revive-cost-display" class="text-2xl font-black font-orbitron text-pink-500">💎 3</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="w-full flex flex-col gap-2">
-            <button id="btn-revive" class="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-orbitron font-black text-sm tracking-wider hover:brightness-110 active:scale-95 transition shadow-[0_0_25px_rgba(0,243,255,0.6)]">
-                ⚡ REVIVE (3 💎)
-            </button>
-            <button id="btn-give-up" class="w-full py-3 rounded-2xl bg-red-950/80 border border-red-500/50 text-red-400 font-orbitron font-bold text-xs hover:bg-red-900/80 transition">
-                MENYERAH
-            </button>
-        </div>
-    </div>
-</div>
-📍 SECTION 2 — JavaScript
-2a. State diamond & revive
-Cari let currentChapter = 1;. Tambahkan di bawahnya:
+🐛 Akar masalah
+Masalah	Detail
+Spawn bersamaan	6 grunt + 3 shooter = 9 musuh muncul di frame yang sama
+Spawn dari 4 sisi	Musuh dari belakang gak ke-cover attack arc
+Attack arc sempit	±72° = cuma 144° coverage dari 360°
+Zero i-frame	Kena 9 musuh sekaligus → 9×12 = 108 damage → langsung mati
+Shooter fire rate	1800ms × 3 shooter = peluru tiap 600ms, belum termasuk spam
+🔧 Fix — 5 patch, mulai dari paling impactful
+Patch 1 — Post-hit invulnerability (WAJIB)
+Cari di Enemy.update(), blok melee:
 
 js
-// ═══════════════════════════════════════════════════════════
-// DIAMOND & REVIVE SYSTEM
-// ═══════════════════════════════════════════════════════════
-let diamonds = 5;
-let reviveCount = 0;
-let isReviving = false;
-const REVIVE_BASE_COST = 3;
-const REVIVE_COST_INCREMENT = 2;
-
-function getReviveCost() {
-    return REVIVE_BASE_COST + reviveCount * REVIVE_COST_INCREMENT;
+if (!player.isDashing && Date.now() > player.invulnUntil) {
+    player.hp -= 12 * player.defenseMult * (this.damageMult || 1);
+    createParticles(player.x, player.y, '#ff0055', 6);
+    currentCombo = 0;
+    if (player.hp <= 0) triggerRevive();
 }
-
-function addDiamonds(amount) {
-    diamonds += amount;
-    const el = document.getElementById('diamond-count-hud');
-    if (el) el.innerText = diamonds;
-}
-
-function updateDiamondHUD() {
-    const el = document.getElementById('diamond-count-hud');
-    if (el) el.innerText = diamonds;
-}
-
-// ═══════════════════════════════════════════════════════════
-// FLOATING TEXT SYSTEM
-// ═══════════════════════════════════════════════════════════
-let floatingTexts = [];
-
-class FloatingText {
-    constructor(x, y, text, color = '#00f3ff', size = 22) {
-        this.x = x; this.y = y;
-        this.text = text; this.color = color; this.size = size;
-        this.life = 1.5; this.maxLife = 1.5;
-        this.vy = -1.2;
-        this.markedForDeletion = false;
-    }
-    update(dt) {
-        this.y += this.vy;
-        this.vy *= 0.97;
-        this.life -= dt;
-        if (this.life <= 0) this.markedForDeletion = true;
-    }
-    draw() {
-        const t = this.life / this.maxLife;
-        ctx.save();
-        ctx.globalAlpha = Math.min(1, t * 2);
-        ctx.font = `bold ${this.size}px Orbitron`;
-        ctx.fillStyle = this.color;
-        ctx.shadowBlur = 14;
-        ctx.shadowColor = this.color;
-        ctx.textAlign = 'center';
-        ctx.fillText(this.text, this.x, this.y);
-        ctx.restore();
-    }
-}
-
-function spawnFloatingText(x, y, text, color, size = 22) {
-    floatingTexts.push(new FloatingText(x, y, text, color, size));
-}
-2b. Update Player class — invulnerability
-Cari class Player {. Di dalam constructor(), tambahkan:
-
-js
-this.invulnUntil = 0;
-Di reset(), tambahkan:
-
-js
-this.invulnUntil = 0;
-2c. Update Enemy class — boss drop diamond
-Cari class Enemy {. Di dalam constructor(), bagian if (type === 'boss') { ... }, tambahkan:
-
-js
-this.diamondMilestones = [0.75, 0.50, 0.25];
-this.givenMilestones = new Set();
-Cari method takeDamage(amount) di dalam Enemy. Ganti jadi:
-
-js
-takeDamage(amount) {
-    this.hp -= amount;
-    createParticles(this.x, this.y, this.color, 5);
-
-    // Boss diamond milestones
-    if (this.type === 'boss') {
-        const hpPct = this.hp / this.maxHp;
-        this.diamondMilestones.forEach(m => {
-            if (hpPct <= m && !this.givenMilestones.has(m) && this.hp > 0) {
-                this.givenMilestones.add(m);
-                addDiamonds(3);
-                spawnFloatingText(this.x, this.y - 40, '+3 💎', '#00f3ff', 26);
-                SoundEngine.playHackSuccess();
-            }
-        });
-    }
-
-    if (this.hp <= 0 && !this.markedForDeletion) {
-        this.markedForDeletion = true;
-        killCount++;
-        SoundEngine.playExplosion();
-        createParticles(this.x, this.y, this.color, 15);
-
-        if (this.type === 'boss') {
-            addDiamonds(15);
-            spawnFloatingText(this.x, this.y - 20, '+15 💎 BOSS REWARD', '#ffb700', 28);
-        }
-    }
-}
-2d. Ganti panggilan triggerGameOver()
-Di Enemy.update() dan Bullet.update(), cari:
-
-js
-if (player.hp <= 0) triggerGameOver();
 Ganti jadi:
 
 js
-if (player.hp <= 0) triggerRevive();
-2e. Tambahkan triggerRevive(), performRevive(), giveUp()
-Tambahkan setelah triggerGameOver() function:
+if (!player.isDashing && Date.now() > player.invulnUntil) {
+    player.hp -= 12 * player.defenseMult * (this.damageMult || 1);
+    player.invulnUntil = Date.now() + 550;   // ← i-frame 550ms
+    createParticles(player.x, player.y, '#ff0055', 6);
+    currentCombo = 0;
+    if (player.hp <= 0) triggerRevive();
+}
+Di Bullet.update(), cari:
 
 js
-function triggerRevive() {
-    if (isReviving) return;
-    if (gameState !== 'COMBAT') return;
-    isReviving = true;
+if (!player.isDashing && Date.now() > player.invulnUntil) {
+    player.hp -= 10 * player.defenseMult * this.dmgMult;
+    currentCombo = 0;
+Ganti jadi:
 
-    // Pause combat
-    gameState = 'REVIVE';
+js
+if (!player.isDashing && Date.now() > player.invulnUntil) {
+    player.hp -= 10 * player.defenseMult * this.dmgMult;
+    player.invulnUntil = Date.now() + 550;   // ← i-frame juga
+    currentCombo = 0;
+Patch 2 — Perluas attack arc
+Cari di Player.attack(), blok check enemy:
 
-    const cost = getReviveCost();
-    document.getElementById('revive-diamond-count').innerText = `💎 ${diamonds}`;
-    document.getElementById('revive-cost-display').innerText = `💎 ${cost}`;
+js
+if (Math.abs(normalizeAngle(enemyAngle - this.attackAngle)) < Math.PI / 2.5) {
+Ganti jadi:
 
-    const reviveBtn = document.getElementById('btn-revive');
-    if (diamonds >= cost) {
-        reviveBtn.disabled = false;
-        reviveBtn.className = "w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-orbitron font-black text-sm tracking-wider hover:brightness-110 active:scale-95 transition shadow-[0_0_25px_rgba(0,243,255,0.6)]";
-        reviveBtn.innerText = `⚡ REVIVE (${cost} 💎)`;
+js
+if (Math.abs(normalizeAngle(enemyAngle - this.attackAngle)) < Math.PI / 1.6) {
+Math.PI / 2.5 ≈ ±72° → Math.PI / 1.6 ≈ ±112°. Coverage naik dari 144° → 224°.
+
+Cari juga di blok deflect bullet:
+
+js
+if (Math.abs(normalizeAngle(bulletAngle - this.attackAngle)) < Math.PI / 2.5) {
+Ganti jadi:
+
+js
+if (Math.abs(normalizeAngle(bulletAngle - this.attackAngle)) < Math.PI / 1.6) {
+Update arc visual di Player.draw():
+
+js
+ctx.arc(0, 0, this.attackRange, sweepAngle - 0.4, sweepAngle + 0.4);
+Ganti jadi:
+
+js
+ctx.arc(0, 0, this.attackRange, sweepAngle - 0.7, sweepAngle + 0.7);
+Patch 3 — Gradual spawn system
+Cari let enemies = []; (bagian atas), tambahkan di bawahnya:
+
+js
+let spawnQueue = [];
+let spawnTimer = 0;
+let spawnInterval = 1.3;
+Cari di startChapterCombat(), blok chapter 1:
+
+js
+if (chapter === 1) {
+    document.getElementById('chapter-title').innerText = "BAB 1: PELARIAN NETWORK";
+    document.getElementById('mission-objective').innerText = "Musnahkan 10 Cyber-Guard Patroli!";
+    // Spawn wave 1
+    for (let i = 0; i < 6; i++) enemies.push(new Enemy('grunt'));
+    for (let i = 0; i < 3; i++) enemies.push(new Enemy('shooter'));
+}
+Ganti jadi:
+
+js
+if (chapter === 1) {
+    document.getElementById('chapter-title').innerText = "BAB 1: PELARIAN NETWORK";
+    document.getElementById('mission-objective').innerText = "Musnahkan 10 Cyber-Guard Patroli!";
+    
+    // Queue musuh — spawn bertahap, bukan sekaligus
+    spawnQueue = [];
+    // 6 grunt + 3 shooter, di-shuffle
+    const chapter1Queue = ['grunt','grunt','grunt','grunt','grunt','grunt','shooter','shooter','shooter'];
+    chapter1Queue.sort(() => Math.random() - 0.5);
+    spawnQueue = chapter1Queue;
+    spawnTimer = 0;
+    spawnInterval = 1.3;   // 1.3 detik antar spawn
+}
+Kalau chapter 3 (boss), pastikan queue di-clear:
+
+js
+} else if (chapter === 3) {
+    document.getElementById('chapter-title').innerText = "BAB 3: PERTEMPURAN BOSS";
+    document.getElementById('mission-objective').innerText = "Hancurkan Kairos Mainframe Avatar!";
+    document.getElementById('boss-bar-container').classList.remove('hidden');
+    spawnQueue = [];   // ← tambah ini
+    enemies.push(new Enemy('boss'));
+}
+Cari di gameLoop(), tepat setelah DDAController.tick(dt, timestamp);:
+
+js
+DDAController.tick(dt, timestamp);
+updateHUD();
+Tambahkan spawn processor sebelum updateHUD():
+
+js
+// ── Gradual spawn processor ──
+if (spawnQueue.length > 0) {
+    spawnTimer += dt;
+    if (spawnTimer >= spawnInterval) {
+        spawnTimer = 0;
+        const type = spawnQueue.shift();
+        enemies.push(new Enemy(type));
+    }
+}
+Update progress trigger — cari di gameLoop:
+
+js
+if (currentChapter === 1 && enemies.length === 0) {
+Ganti jadi (harus tunggu queue juga kosong):
+
+js
+if (currentChapter === 1 && enemies.length === 0 && spawnQueue.length === 0) {
+Patch 4 — Spawn safety distance
+Cari di class Enemy constructor, blok spawn border:
+
+js
+if (Math.random() < 0.5) {
+    this.x = Math.random() < 0.5 ? -30 : canvas.width + 30;
+    this.y = Math.random() * canvas.height;
+} else {
+    this.x = Math.random() * canvas.width;
+    this.y = Math.random() < 0.5 ? -30 : canvas.height + 30;
+}
+Ganti jadi:
+
+js
+// Pilih posisi spawn di border, minimal 280px dari player
+let spawned = false;
+let attempts = 0;
+while (!spawned && attempts < 20) {
+    attempts++;
+    let sx, sy;
+    if (Math.random() < 0.5) {
+        sx = Math.random() < 0.5 ? -30 : canvas.width + 30;
+        sy = Math.random() * canvas.height;
     } else {
-        reviveBtn.disabled = true;
-        reviveBtn.className = "w-full py-4 rounded-2xl bg-gray-800 text-gray-500 font-orbitron font-black text-sm tracking-wider cursor-not-allowed opacity-50";
-        reviveBtn.innerText = `💎 DIAMOND KURANG (butuh ${cost})`;
+        sx = Math.random() * canvas.width;
+        sy = Math.random() < 0.5 ? -30 : canvas.height + 30;
     }
-
-    document.getElementById('revive-overlay').classList.remove('hidden');
-    document.getElementById('hud-combat').classList.add('hidden');
-    document.getElementById('touch-controls').classList.add('hidden');
+    
+    const dist = Math.hypot(sx - player.x, sy - player.y);
+    if (dist > 280) {
+        this.x = sx;
+        this.y = sy;
+        spawned = true;
+    }
 }
 
-function performRevive() {
-    const cost = getReviveCost();
-    if (diamonds < cost) return;
-
-    diamonds -= cost;
-    reviveCount++;
-    isReviving = false;
-
-    // Restore player
-    player.hp = player.maxHp * 0.6;
-    player.energy = 100;
-
-    // Shockwave — bunuh musuh sekitar, stun boss
-    const shockwaveRadius = 280;
-    enemies.forEach(e => {
-        const d = Math.hypot(e.x - player.x, e.y - player.y);
-        if (d < shockwaveRadius) {
-            if (e.type === 'boss') {
-                e.takeDamage(80);
-            } else {
-                e.takeDamage(9999);
-            }
-        }
-    });
-
-    // Clear enemy bullets
-    bullets.forEach(b => {
-        if (!b.isPlayerBullet) b.markedForDeletion = true;
-    });
-
-    // Visual FX
-    createParticles(player.x, player.y, '#00f3ff', 50);
-    createParticles(player.x, player.y, '#ff0055', 40);
-    SoundEngine.playHackSuccess();
-    spawnFloatingText(player.x, player.y - 50, '⚡ REVIVED!', '#00f3ff', 32);
-
-    // 2.5s invulnerability
-    player.invulnUntil = Date.now() + 2500;
-
-    // Restore UI
-    document.getElementById('revive-overlay').classList.add('hidden');
-    document.getElementById('hud-combat').classList.remove('hidden');
-    if (isTouchDevice) document.getElementById('touch-controls').classList.remove('hidden');
-
-    updateDiamondHUD();
-    gameState = 'COMBAT';
+// Fallback kalau gagal 20x
+if (!spawned) {
+    this.x = Math.random() < 0.5 ? -30 : canvas.width + 30;
+    this.y = Math.random() * canvas.height;
 }
+Patch 5 — Nerf musuh Chapter 1
+Cari di class Enemy constructor, blok grunt dan shooter:
 
-function giveUp() {
-    isReviving = false;
-    document.getElementById('revive-overlay').classList.add('hidden');
-    triggerGameOver();
-}
-2f. Update damage code — hormati invulnerability
-Di Enemy.update() untuk melee:
+Grunt:
 
 js
-if (!player.isDashing) {
-    player.hp -= 12 * player.defenseMult;
+} else { // Melee Grunt
+    this.radius = 16;
+    this.speed = 2.8 * ddaSpd;
 Ganti jadi:
 
 js
-if (!player.isDashing && Date.now() > player.invulnUntil) {
-    player.hp -= 12 * player.defenseMult;
-Di Bullet.update():
+} else { // Melee Grunt
+    this.radius = 16;
+    this.speed = 2.2 * ddaSpd;   // ← 2.8 → 2.2
+Shooter:
 
 js
-if (!player.isDashing) {
-    player.hp -= 10 * player.defenseMult;
+} else if (type === 'shooter') {
+    this.radius = 16;
+    this.speed = 2.0 * ddaSpd;
+    this.maxHp = 50 * ddaHp;
 Ganti jadi:
 
 js
-if (!player.isDashing && Date.now() > player.invulnUntil) {
-    player.hp -= 10 * player.defenseMult;
-2g. Update gameLoop untuk floating text
-Cari di gameLoop():
+} else if (type === 'shooter') {
+    this.radius = 16;
+    this.speed = 1.6 * ddaSpd;   // ← 2.0 → 1.6
+    this.maxHp = 50 * ddaHp;
+Fire rate shooter — cari di Enemy.update():
 
 js
-particles.forEach(p => p.update(dt));
-Tambahkan setelahnya:
+if (now - this.lastShot >= 1800) {
+Ganti jadi:
 
 js
-floatingTexts.forEach(ft => ft.update(dt));
-Cari:
-
-js
-particles = particles.filter(p => !p.markedForDeletion);
-Tambahkan setelahnya:
-
-js
-floatingTexts = floatingTexts.filter(ft => !ft.markedForDeletion);
-Cari di bagian render:
-
-js
-particles.forEach(p => p.draw());
-Tambahkan setelahnya:
-
-js
-floatingTexts.forEach(ft => ft.draw());
-2h. Update startGame()
-Cari function startGame() {. Tambahkan di dalamnya:
-
-js
-diamonds = 5;
-reviveCount = 0;
-isReviving = false;
-floatingTexts = [];
-updateDiamondHUD();
-2i. Register button handlers
-Cari document.getElementById('btn-restart').onclick = startGame;. Tambahkan di bawahnya:
-
-js
-document.getElementById('btn-revive').onclick = performRevive;
-document.getElementById('btn-give-up').onclick = giveUp;
+if (now - this.lastShot >= 2400) {   // ← 1800 → 2400
+📊 Hasil yang diharapkan
+Aspek	Sebelum	Sesudah
+Spawn timing	9 sekaligus	1 setiap 1.3s = ~12s
+Attack coverage	144°	224°
+Damage burst	108 HP dari 9 hit	Max 12 HP per 550ms
+Musuh dekat player	Bisa spawn di samping	Min 280px away
+Grunt speed	2.8	2.2
+Shooter fire rate	1800ms	2400ms
