@@ -246,58 +246,90 @@
 
         // Uncapped & Persistent DDA System
         const DDAController = {
-            difficultyScale: 1.0, // Starts at 1.0, NO UPPER CAP (scales infinitely)
+            // Skala yang beneran dipakai game — selalu di-smooth, gak pernah lompat tiba-tiba
+            difficultyScale: 1.0,
+            targetScale: 1.0,       // arah yang dituju, dievaluasi ulang tiap WINDOW_DURATION detik
+            minScale: 0.6,          // batas bawah — game gak akan pernah lebih gampang dari ini
+            maxScale: 2.5,          // batas atas — game gak akan pernah lebih gila dari ini
+
             lastPlayerX: 0,
             lastPlayerY: 0,
+            initialized: false,
+
+            // Penilaian performa dalam jendela waktu berjalan (ala RE4: dievaluasi
+            // berkala berdasarkan kondisi TERKINI pemain, bukan akumulasi seumur hidup)
+            windowTimer: 0,
+            WINDOW_DURATION: 8, // re-evaluate tiap 8 detik
+            damageTakenInWindow: 0,
+            killsInWindow: 0,
+
+            // Statistik lifetime, dipakai buat anti-idle & anti-overpowered check ringan
             totalDistanceMoved: 0,
             damageTakenTotal: 0,
-            initialized: false, // Flag to prevent access to player before it exists
-            
-            update() {
+
+            update(dt) {
                 // Safety check: don't run if player hasn't been initialized
-                if (!this.initialized || !player) return;
-                
-                // Anti-idle: track distance moved per frame
+                if (!this.initialized || !player) return this.difficultyScale;
+
                 const currentDist = Math.hypot(player.x - this.lastPlayerX, player.y - this.lastPlayerY);
                 this.totalDistanceMoved += currentDist;
                 this.lastPlayerX = player.x;
                 this.lastPlayerY = player.y;
 
-                // Grace period: keep difficulty at baseline for the first 20s
-                // so the player has room to level up and grab early upgrades.
+                // Grace period: 20 detik pertama tetap gampang total
                 if (gameTime < 20) {
                     this.difficultyScale = 1.0;
+                    this.targetScale = 1.0;
                     return this.difficultyScale;
                 }
-                
-                // Scaling factor: increases with kills and movement (anti-idle)
-                const killScaling = killCount * 0.0004; // +0.0004 per kill (was 0.001)
-                const movementScaling = this.totalDistanceMoved * 0.00003; // +0.00003 per pixel (was 0.0001)
-                const spikeScaling = (killCount > 500 && this.damageTakenTotal < 10) ? 0.1 : 0; // Anti-overpowered spike
-                
-                // Apply upward scaling (always increases with gameplay)
-                this.difficultyScale = Math.max(1.0, this.difficultyScale + killScaling + movementScaling + spikeScaling);
-                
-                // Decay ONLY when HP < 10% (critical threshold)
-                if (player.hp < player.maxHp * 0.1) {
-                    this.difficultyScale *= 0.999; // Slow decay (30-60 seconds at 10% HP)
+
+                this.windowTimer += dt;
+
+                // Evaluasi performa tiap WINDOW_DURATION detik — liat kondisi
+                // pemain SEKARANG, lalu putuskan naik/turun sedikit.
+                if (this.windowTimer >= this.WINDOW_DURATION) {
+                    const hpRatio = player.hp / player.maxHp;
+                    let delta;
+
+                    if (this.damageTakenInWindow === 0 && this.killsInWindow >= 4) {
+                        delta = 0.4;   // jago banget, gak kena hit sama sekali -> naikin tantangan
+                    } else if (this.damageTakenInWindow < 10 && this.killsInWindow >= 2) {
+                        delta = 0.15;  // performa bagus -> naik dikit
+                    } else if (hpRatio < 0.25) {
+                        delta = -0.5;  // HP kritis -> kasih napas beneran
+                    } else if (this.damageTakenInWindow > 30) {
+                        delta = -0.25; // sering kena hit -> turunin
+                    } else {
+                        delta = 0.05;  // performa medium -> tetep ada progres pelan
+                    }
+
+                    this.targetScale = Math.min(this.maxScale, Math.max(this.minScale, this.targetScale + delta));
+
+                    this.windowTimer = 0;
+                    this.damageTakenInWindow = 0;
+                    this.killsInWindow = 0;
                 }
-                
-                // Ensure minimum of 1.0
-                this.difficultyScale = Math.max(1.0, this.difficultyScale);
-                
-                // Log for debugging
-                if (Math.random() < 0.005) {
-                    console.log(`DDA: difficultyScale=${this.difficultyScale.toFixed(2)}, kills=${killCount}, dist=${this.totalDistanceMoved.toFixed(0)}`);
+
+                // Interpolasi halus menuju target — gak pernah lompat instan
+                this.difficultyScale += (this.targetScale - this.difficultyScale) * Math.min(1, dt * 0.8);
+                this.difficultyScale = Math.max(this.minScale, Math.min(this.maxScale, this.difficultyScale));
+
+                if (Math.random() < 0.01) {
+                    console.log(`DDA: scale=${this.difficultyScale.toFixed(2)} target=${this.targetScale.toFixed(2)} hpRatio=${(player.hp / player.maxHp).toFixed(2)}`);
                 }
-                
+
                 return this.difficultyScale;
             },
-            
+
             recordDamage(amount) {
                 this.damageTakenTotal += amount;
+                this.damageTakenInWindow += amount;
             },
-            
+
+            recordKill() {
+                this.killsInWindow++;
+            },
+
             getSpawnRateMultiplier() {
                 return this.difficultyScale; // More enemies as difficulty increases
             },
@@ -706,6 +738,7 @@
                 if (this.hp <= 0) {
                     this.markedForDeletion = true;
                     killCount++;
+                    DDAController.recordKill();
                     gems.push(new Gem(this.x, this.y, this.xpValue));
                     createParticles(this.x, this.y, this.color, 12);
                     SoundEngine.playExplosion();
@@ -840,7 +873,7 @@
             }
 
             // Spawn Boss every 60 seconds
-            if (gameTime > 0 && Math.floor(gameTime) % 60 === 0 && !bossSpawned) {
+            if (Math.floor(gameTime) > 0 && Math.floor(gameTime) % 60 === 0 && !bossSpawned) {
                 enemies.push(new Enemy('boss'));
                 bossSpawned = true;
             } else if (Math.floor(gameTime) % 60 !== 0) {
@@ -903,7 +936,7 @@
                 spawnManager(performance.now());
 
                 // DDA update and UI feedback
-                DDAController.update();
+                DDAController.update(dt);
 
                 // Bullet updates & collision
                 bullets.forEach(b => b.update());
@@ -998,6 +1031,10 @@
             // Initialize DDA after player is fully reset
             DDAController.initialized = true;
             DDAController.difficultyScale = 1.0;
+            DDAController.targetScale = 1.0;
+            DDAController.windowTimer = 0;
+            DDAController.damageTakenInWindow = 0;
+            DDAController.killsInWindow = 0;
             DDAController.totalDistanceMoved = 0;
             DDAController.damageTakenTotal = 0;
             DDAController.lastPlayerX = player.x;
