@@ -428,3 +428,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Cookie consent banner
+const cookieBanner = document.getElementById('cookieBanner');
+const cookieAccept = document.getElementById('cookieAccept');
+
+if (cookieBanner && !localStorage.getItem('cookieConsent')) {
+    setTimeout(() => {
+        cookieBanner.hidden = false;
+    }, 1000);
+}
+
+if (cookieAccept) {
+    cookieAccept.addEventListener('click', () => {
+        localStorage.setItem('cookieConsent', 'accepted');
+        cookieBanner.hidden = true;
+    });
+}

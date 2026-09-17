@@ -556,3 +556,51 @@ body.dark-mode footer {
         display: none !important;
     }
 }
+
+.cookie-banner {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+    background: white;
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    z-index: 9999;
+    animation: slideUp 0.4s ease;
+}
+
+.cookie-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.cookie-content span {
+    flex: 1;
+    font-size: 0.9rem;
+    min-width: 200px;
+}
+
+#cookieAccept {
+    padding: 8px 20px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+body.dark-mode .cookie-banner {
+    background: #2d3748;
+    color: #e2e8f0;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
