@@ -278,13 +278,18 @@
             </div>
 
             <div class="w-full bg-gray-900/90 rounded-2xl p-4 border border-red-900/50 space-y-2 text-sm font-orbitron">
+                <div class="flex justify-between"><span class="text-gray-400">Siklus Tercapai:</span><span id="end-cycle" class="text-amber-300 font-bold">1</span></div>
                 <div class="flex justify-between"><span class="text-gray-400">Total Combo Maksimal:</span><span id="end-combo" class="text-pink-400 font-bold">0x</span></div>
                 <div class="flex justify-between"><span class="text-gray-400">Cyber-Guard Dimusnahkan:</span><span id="end-kills" class="text-cyan-400 font-bold">0</span></div>
                 <div class="flex justify-between"><span class="text-gray-400">Status Misi:</span><span id="end-status" class="text-amber-400 font-bold">GAGAL</span></div>
             </div>
 
+            <button id="btn-next-cycle" class="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 via-pink-600 to-purple-600 text-white font-orbitron font-black text-lg hover:brightness-110 active:scale-95 transition shadow-[0_0_25px_rgba(255,183,0,0.6)] hidden">
+                🔁 MASUKI SIKLUS BERIKUTNYA
+            </button>
+
             <button id="btn-restart" class="w-full py-4 rounded-2xl bg-gradient-to-r from-red-600 via-pink-600 to-cyan-500 text-white font-orbitron font-black text-lg hover:brightness-110 active:scale-95 transition shadow-[0_0_25px_rgba(255,0,85,0.6)]">
-                REBOOT CORE (ULANGI)
+                REBOOT CORE (ULANGI DARI AWAL)
             </button>
         </div>
     </div>
@@ -408,6 +413,7 @@
         let maxCombo = 0;
         let currentCombo = 0;
         let currentChapter = 1;
+        let cycleCount = 1;
 
         // ═══════════════════════════════════════════════════════════
         // DIAMOND & REVIVE SYSTEM
@@ -945,11 +951,11 @@
                     this.baseX = canvas.width / 2;
                     this.radius = 42;
                     this.speed = 1.2 * ddaSpd;
-                    this.maxHp = 1200 * ddaHp;
+                    this.maxHp = 1200 * ddaHp * (1 + (cycleCount - 1) * 0.35);
                     this.hp = this.maxHp;
                     this.color = '#ff0055';
                     this.lastShot = 0;
-                    this.damageMult = ddaDmg;
+                    this.damageMult = ddaDmg * (1 + (cycleCount - 1) * 0.15);
                     this.diamondMilestones = [0.75, 0.50, 0.25];
                     this.givenMilestones = new Set();
                 } else if (type === 'shooter') {
@@ -1226,6 +1232,25 @@
             }
         };
 
+        function getStoryText(chapterId) {
+            if (chapterId === 1) {
+                if (cycleCount === 1) return "VEX-09, sinyal biologismu kembali stabil. Kita telah membobol sektor terluar Mainframe Kairos. Pasukan Cyber-Guard sedang menuju lokasi kita!";
+                if (cycleCount === 2) return "VEX-09... aneh. Topologi jaringan ini terasa familiar. Sepertinya Kairos mem-fork ulang core-nya sebelum firewall terakhir runtuh — kita masuk siklus baru, dari sektor luar lagi.";
+                return `Siklus ke-${cycleCount}. Cyber-Guard sudah mempelajari pola seranganmu dari putaran sebelumnya. Mereka lebih siap sekarang, VEX-09. Tetap fokus.`;
+            }
+            if (chapterId === 2) {
+                if (cycleCount === 1) return "Subjek VEX-09. Upaya perlawananmu hanyalah anomali statistik. Kamu tidak akan bisa meretas Firewall Server Utama.";
+                if (cycleCount === 2) return "Subjek VEX-09... kau kembali. Aku mengingat setiap langkahmu di siklus sebelumnya. Kali ini, Firewall-ku telah beradaptasi.";
+                return `Siklus ke-${cycleCount}, dan masih saja kau kembali. Aku belajar lebih cepat dari yang kau kira, VEX-09.`;
+            }
+            if (chapterId === 3) {
+                if (cycleCount === 1) return "Firewall berhasil dijebol! Avatar fisik Kairos muncul di arena. Hancurkan core-nya untuk membebaskan jaringan!";
+                if (cycleCount === 2) return "Firewall jebol lagi — tapi Avatar Kairos kali ini terasa lebih kuat. Sepertinya dia menyerap data dari kekalahannya di siklus sebelumnya!";
+                return `Ini pertarungan ke-${cycleCount} kita melawan Kairos. Dia terus berevolusi tiap siklus... tapi begitu juga kita. Habisi dia lagi, VEX-09!`;
+            }
+            return STORY_CHAPTERS[chapterId] ? STORY_CHAPTERS[chapterId].text : '';
+        }
+
         function showDialogue(chapterId) {
             gameState = 'DIALOGUE';
             document.getElementById('hud-combat').classList.add('hidden');
@@ -1235,7 +1260,7 @@
             document.getElementById('speaker-name').innerText = data.speaker;
             document.getElementById('speaker-role').innerText = data.role;
             document.getElementById('speaker-avatar').innerText = data.avatar;
-            document.getElementById('dialogue-text').innerText = data.text;
+            document.getElementById('dialogue-text').innerText = getStoryText(chapterId);
 
             const choicesContainer = document.getElementById('dialogue-choices');
             choicesContainer.innerHTML = '';
@@ -1273,18 +1298,30 @@
             bullets = [];
 
             if (chapter === 1) {
-                document.getElementById('chapter-title').innerText = "BAB 1: PELARIAN NETWORK";
-                document.getElementById('mission-objective').innerText = "Musnahkan 10 Cyber-Guard Patroli!";
-                
-                // Queue musuh — spawn bertahap, bukan sekaligus
-                spawnQueue = [];
-                const chapter1Queue = ['grunt','grunt','grunt','grunt','grunt','grunt','shooter','shooter','shooter'];
+                document.getElementById('chapter-title').innerText = cycleCount > 1
+                    ? `SIKLUS ${cycleCount} · BAB 1: PELARIAN NETWORK`
+                    : "BAB 1: PELARIAN NETWORK";
+
+                // Queue musuh — spawn bertahap, jumlah naik tiap siklus
+                const baseGrunts = 7 + (cycleCount - 1) * 2;
+                const baseShooters = 3 + (cycleCount - 1) * 1;
+                const chapter1Queue = [];
+                for (let i = 0; i < baseGrunts; i++) chapter1Queue.push('grunt');
+                for (let i = 0; i < baseShooters; i++) chapter1Queue.push('shooter');
                 chapter1Queue.sort(() => Math.random() - 0.5);
+
+                document.getElementById('mission-objective').innerText = `Musnahkan ${baseGrunts + baseShooters} Cyber-Guard Patroli!`;
+
                 spawnQueue = chapter1Queue;
                 spawnTimer = 0;
                 spawnInterval = 1.3;
             } else if (chapter === 3) {
-                document.getElementById('chapter-title').innerText = "BAB 3: PERTEMPURAN BOSS";
+                document.getElementById('chapter-title').innerText = cycleCount > 1
+                    ? `SIKLUS ${cycleCount} · BAB 3: PERTEMPURAN BOSS`
+                    : "BAB 3: PERTEMPURAN BOSS";
+                document.getElementById('boss-name').innerText = cycleCount > 1
+                    ? `KAIROS MAINFRAME AVATAR · SIKLUS ${cycleCount}`
+                    : "KAIROS MAINFRAME AVATAR";
                 document.getElementById('mission-objective').innerText = "Hancurkan Kairos Mainframe Avatar!";
                 document.getElementById('boss-bar-container').classList.remove('hidden');
                 spawnQueue = [];
@@ -1485,6 +1522,7 @@
             maxCombo = 0;
             currentCombo = 0;
             currentChapter = 1;
+            cycleCount = 1;
 
             // Reset diamond & revive system
             diamonds = 5;
@@ -1502,6 +1540,12 @@
 
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('gameover-screen').classList.add('hidden');
+            document.getElementById('btn-next-cycle').classList.add('hidden');
+
+            // Reset panel HP boss dari game sebelumnya (kalau ada)
+            document.getElementById('boss-bar-container').classList.add('hidden');
+            document.getElementById('boss-hp-bar').style.width = '100%';
+            document.getElementById('boss-hp-text').innerText = '100%';
 
             if (isTouchDevice) {
                 document.getElementById('touch-controls').classList.remove('hidden');
@@ -1523,7 +1567,9 @@
 
             document.getElementById('end-combo').innerText = `${maxCombo}x`;
             document.getElementById('end-kills').innerText = killCount;
+            document.getElementById('end-cycle').innerText = cycleCount;
 
+            document.getElementById('btn-next-cycle').classList.add('hidden');
             document.getElementById('gameover-screen').classList.remove('hidden');
         }
 
@@ -1615,20 +1661,50 @@
             document.getElementById('dialogue-overlay').classList.add('hidden');
             document.getElementById('touch-controls').classList.add('hidden');
 
-            document.getElementById('end-title').innerText = "SYSTEM LIBERATED!";
+            document.getElementById('end-title').innerText = `SIKLUS ${cycleCount} SELESAI!`;
             document.getElementById('end-title').className = "text-4xl font-black font-orbitron text-cyan-400 neon-text-cyan mb-2";
-            document.getElementById('end-subtitle').innerText = "Selamat! VEX-09 & A.I. Echo telah menghancurkan Kairos!";
-            document.getElementById('end-status').innerText = "SUKSES (SELESAI)";
+            document.getElementById('end-subtitle').innerText = "Kairos hancur... tapi sinyalnya masih berdenyut di suatu tempat di jaringan. Lanjut ke siklus berikutnya, atau reboot dari awal?";
+            document.getElementById('end-status').innerText = "SUKSES (SIKLUS SELESAI)";
 
             document.getElementById('end-combo').innerText = `${maxCombo}x`;
             document.getElementById('end-kills').innerText = killCount;
+            document.getElementById('end-cycle').innerText = cycleCount;
 
+            document.getElementById('btn-next-cycle').classList.remove('hidden');
             document.getElementById('gameover-screen').classList.remove('hidden');
+        }
+
+        function enterNextCycle() {
+            cycleCount++;
+
+            player.reset();
+            enemies = [];
+            bullets = [];
+            particles = [];
+            floatingTexts = [];
+            currentCombo = 0;
+            diamonds += 3; // bonus diamond tiap masuk siklus baru
+
+            updateDiamondHUD();
+
+            document.getElementById('gameover-screen').classList.add('hidden');
+            document.getElementById('btn-next-cycle').classList.add('hidden');
+
+            document.getElementById('boss-bar-container').classList.add('hidden');
+            document.getElementById('boss-hp-bar').style.width = '100%';
+            document.getElementById('boss-hp-text').innerText = '100%';
+
+            if (isTouchDevice) {
+                document.getElementById('touch-controls').classList.remove('hidden');
+            }
+
+            showDialogue(1);
         }
 
         // Event Listeners
         document.getElementById('btn-start-game').onclick = startGame;
         document.getElementById('btn-restart').onclick = startGame;
+        document.getElementById('btn-next-cycle').onclick = enterNextCycle;
         document.getElementById('btn-revive').onclick = performRevive;
         document.getElementById('btn-give-up').onclick = giveUp;
         document.getElementById('btn-next-dialogue').onclick = () => {

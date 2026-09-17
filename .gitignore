@@ -1,2 +1,8 @@
-#
+# Target files
 target_update.md
+
+# Screenshoter (local setup only)
+screenshotter/
+
+#node_modules/
+node_modules
