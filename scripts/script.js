@@ -80,9 +80,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Loading overlay when clicking play buttons
+    // Track play button clicks
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('play-button')) {
+            const card = e.target.closest('.game-card');
+            const gameName = card?.dataset.game || 'unknown';
+            const gameUrl = e.target.getAttribute('href');
+            
+            // Track in Google Analytics
+            if (window.gtag) {
+                gtag('event', 'play_game', {
+                    game_name: gameName,
+                    game_url: gameUrl,
+                });
+            }
+            
+            // Show loading overlay
             loadingOverlay.classList.add('active');
             setTimeout(() => {
                 loadingOverlay.classList.remove('active');
