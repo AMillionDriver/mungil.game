@@ -17,6 +17,8 @@ header {
     color: white;
     padding: 2rem 1rem;
     text-align: center;
+    position: relative;
+    z-index: 10;
 }
 
 header h1 {
@@ -27,6 +29,7 @@ header h1 {
 .search-container {
     max-width: 500px;
     margin: 0 auto;
+    position: relative;
 }
 
 #searchInput {
@@ -41,6 +44,67 @@ header h1 {
 
 #searchInput:focus {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.search-suggestions {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+    z-index: 999;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 6px;
+    animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.search-suggestions[hidden] {
+    display: none;
+}
+
+.suggestion-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #333;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+}
+
+.suggestion-item:hover,
+.suggestion-item.active {
+    background: #f0eaff;
+}
+
+.suggestion-icon {
+    font-size: 1.1rem;
+}
+
+.suggestion-hint {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: #888;
+    padding: 2px 6px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
 }
 
 /* Main Content */
@@ -318,6 +382,10 @@ footer p {
 .filter-section {
     margin-top: 1.5rem;
     padding: 0 1rem;
+    max-height: 200px;
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.2s ease, margin-top 0.25s ease;
+    opacity: 1;
 }
 
 .filter-chips {
@@ -414,10 +482,37 @@ footer p {
     }
 }
 
+/* Collapsed Filter Section */
+body.is-searching .filter-section {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    pointer-events: none;
+}
+
 /* Dark Mode */
 body.dark-mode {
     background-color: #1a202c;
     color: #e2e8f0;
+}
+
+body.dark-mode .search-suggestions {
+    background: #2d3748;
+    border-color: #4a5568;
+}
+
+body.dark-mode .suggestion-item {
+    color: #e2e8f0;
+}
+
+body.dark-mode .suggestion-item:hover,
+body.dark-mode .suggestion-item.active {
+    background: #4a5568;
+}
+
+body.dark-mode .suggestion-hint {
+    border-color: #4a5568;
+    color: #a0aec0;
 }
 
 body.dark-mode header {
@@ -455,5 +550,9 @@ body.dark-mode footer {
     
     .games-container {
         grid-template-columns: 1fr;
+    }
+
+    .search-suggestions {
+        display: none !important;
     }
 }

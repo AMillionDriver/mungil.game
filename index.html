@@ -6,6 +6,7 @@
     <title>Mini Game Hub</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#667eea">
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
@@ -27,6 +28,7 @@
         <div class="header-controls">
             <div class="search-container">
                 <input type="text" id="searchInput" placeholder="Search games...">
+                <div id="searchSuggestions" class="search-suggestions" hidden></div>
             </div>
             <button id="darkModeToggle" class="mode-toggle" title="Toggle dark mode">🌙</button>
         </div>

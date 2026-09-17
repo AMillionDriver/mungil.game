@@ -8,11 +8,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const filterChips = document.querySelectorAll('.filter-chip');
     const sortSelect = document.getElementById('sortSelect');
     const loadingOverlay = document.getElementById('loadingOverlay');
+    const suggestionsBox = document.getElementById('searchSuggestions');
 
     // Show first 20 games initially
     let displayedCount = 20;
     let currentFilter = 'all';
     let currentSort = 'newest';
+    let fuse = null;
+    let activeSuggestionIdx = -1;
+    let currentSuggestions = [];
 
     // Dark mode toggle
     const savedDarkMode = localStorage.getItem('darkMode');
@@ -65,10 +69,14 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             searchInput.focus();
         }
-        if (e.key === 'Escape' && document.activeElement === searchInput) {
-            searchInput.value = '';
-            searchInput.dispatchEvent(new Event('input'));
-            searchInput.blur();
+        if (e.key === 'Escape') {
+            if (document.activeElement === searchInput) {
+                searchInput.value = '';
+                document.body.classList.remove('is-searching');
+                hideSuggestions();
+                searchInput.blur();
+                searchInput.dispatchEvent(new Event('input'));
+            }
         }
     });
 
@@ -118,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
             card.className = 'game-card';
             card.setAttribute('data-game', gameName);
             card.innerHTML = `
-                <img src="assets/thumbs/${gameName}.png" alt="${gameName.replace(/-/g, ' ')}" class="game-thumbnail" onerror="this.onerror=null;this.src='assets/thumbs/fallback.svg';this.onerror=null;">
+                <img src="assets/thumbs/${gameName}.png" alt="${gameName.replace(/-/g, ' ')}" class="game-thumbnail" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='assets/thumbs/fallback.svg';">
                 <div class="game-tags">
                     <span class="tag action">Action</span>
                     <span class="tag browser">Browser</span>
@@ -152,20 +160,258 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Search functionality
+    // Build full index on load
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(buildFullIndex, 500);
+    });
+
+    // ═══════════════════════════════════════════════════
+    // FULL DATASET SEARCH (featured + all JSK games)
+    // ═══════════════════════════════════════════════════
+    let fullGameIndex = [];
+
+    function buildFullIndex() {
+        fullGameIndex = [];
+
+        // 1. Featured games (from DOM)
+        document.querySelectorAll('#gamesContainer .game-card').forEach(card => {
+            fullGameIndex.push({
+                type: 'featured',
+                name: card.querySelector('h2')?.textContent?.trim() || '',
+                tags: Array.from(card.querySelectorAll('.tag')).map(t => t.textContent).join(' '),
+                description: card.querySelector('p')?.textContent || '',
+                href: card.querySelector('a.play-button')?.getAttribute('href') || '#',
+                element: card,
+            });
+        });
+
+        // 2. All JSK games (from array, not DOM)
+        if (typeof jskGames !== 'undefined') {
+            jskGames.forEach(slug => {
+                const name = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                fullGameIndex.push({
+                    type: 'jsk',
+                    name,
+                    slug,
+                    tags: 'action browser',
+                    description: 'JSk13Games browser-based game',
+                    href: `./game/Jsk_Games/${slug}/index.html`,
+                    thumb: `assets/thumbs/${slug}.png`,
+                    element: null,
+                });
+            });
+        }
+
+        fuse = new Fuse(fullGameIndex, {
+            keys: [
+                { name: 'name', weight: 0.7 },
+                { name: 'tags', weight: 0.2 },
+                { name: 'description', weight: 0.1 },
+            ],
+            threshold: 0.4,
+            includeScore: true,
+            minMatchCharLength: 1,
+            ignoreLocation: true,
+            findAllMatches: true,
+        });
+
+        console.log(`🔍 Fuse indexed ${fullGameIndex.length} games`);
+    }
+
+    // Expose for games.js
+    window.buildFullIndex = buildFullIndex;
+
+    // Create JSK card element with lazy loading
+    function createJskCardElement(game) {
+        const card = document.createElement('div');
+        card.className = 'game-card';
+        card.setAttribute('data-game', game.slug);
+
+        card.innerHTML = `
+            <img src="${game.thumb}" 
+                 alt="${game.name}" 
+                 class="game-thumbnail" 
+                 loading="lazy"
+                 decoding="async"
+                 onerror="this.onerror=null;this.src='assets/thumbs/fallback.svg';">
+            <div class="game-tags">
+                <span class="tag action">Action</span>
+                <span class="tag browser">Browser</span>
+            </div>
+            <h2>${game.name}</h2>
+            <p>${game.description}. Click to play now.</p>
+            <p class="attribution">This game was clone from JSk13Games (Play the original on their website)</p>
+            <a href="${game.href}" class="play-button">Play Now</a>
+        `;
+
+        game.element = card;
+        return card;
+    }
+
+    // Search handler - render from FULL dataset
     searchInput.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase();
-        const allCards = document.querySelectorAll('.game-card');
+        const query = this.value.trim();
+        const jskContainer = document.getElementById('jskGamesContainer');
+        const loadMoreContainer = document.querySelector('.load-more-container');
+        const featuredContainer = document.getElementById('gamesContainer');
 
-        allCards.forEach(card => {
-            const gameName = card.getAttribute('data-game').toLowerCase();
-            const description = Array.from(card.querySelectorAll('p')).map(p => p.textContent.toLowerCase()).join(' ');
+        // Toggle is-searching class to hide filter section
+        if (query.length > 0) {
+            document.body.classList.add('is-searching');
+        } else {
+            document.body.classList.remove('is-searching');
+        }
 
-            if (gameName.includes(searchTerm) || description.includes(searchTerm)) {
-                card.style.display = 'block';
-            } else {
-                card.style.display = 'none';
+        // Empty query = reset to paginated view
+        if (!query) {
+            hideSuggestions();
+            if (typeof jskGames !== 'undefined') {
+                jskContainer.innerHTML = '';
+                renderGameCards(jskGames, 0, displayedCount);
+                loadMoreContainer.style.display = '';
+            }
+            featuredContainer.style.display = '';
+            return;
+        }
+
+        if (!fuse) buildFullIndex();
+
+        const results = fuse.search(query);
+
+        // Hide Load More during search
+        loadMoreContainer.style.display = 'none';
+
+        // Clear and re-render
+        jskContainer.innerHTML = '';
+        featuredContainer.innerHTML = '';
+
+        if (results.length === 0) {
+            featuredContainer.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 3rem 1rem;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.6;">😕</div>
+                    <h3 style="color: #333; margin-bottom: 0.5rem;">Nggak nemu game "${query}"</h3>
+                    <p style="color: #888; font-size: 0.9rem;">Coba: <b>neon</b>, <b>tower</b>, <b>13</b>, <b>puzzle</b></p>
+                </div>
+            `;
+            hideSuggestions();
+            return;
+        }
+
+        const jskResults = results.filter(r => r.item.type === 'jsk');
+        const featuredResults = results.filter(r => r.item.type === 'featured');
+
+        // Render featured
+        featuredResults.forEach(r => {
+            if (r.item.element) {
+                featuredContainer.appendChild(r.item.element);
             }
         });
+
+        // Render JSK - render from data with lazy loading
+        jskResults.forEach(r => {
+            const cardEl = createJskCardElement(r.item);
+            jskContainer.appendChild(cardEl);
+        });
+
+        // Suggestions
+        currentSuggestions = results.slice(0, 5).map(r => r.item);
+        renderSuggestions(currentSuggestions);
     });
+
+    function renderSuggestions(items) {
+        if (!items.length) {
+            hideSuggestions();
+            return;
+        }
+
+        activeSuggestionIdx = -1;
+        suggestionsBox.innerHTML = '';
+
+        items.forEach((item, idx) => {
+            const el = document.createElement('div');
+            el.className = 'suggestion-item';
+            el.dataset.idx = idx;
+            el.innerHTML = `
+                <span class="suggestion-icon">🎮</span>
+                <span>${item.name}</span>
+                ${idx === 0 ? '<span class="suggestion-hint">Enter ⏎</span>' : ''}
+            `;
+            el.addEventListener('click', () => openGame(item));
+            el.addEventListener('mouseenter', () => {
+                activeSuggestionIdx = idx;
+                updateActiveSuggestion();
+            });
+            suggestionsBox.appendChild(el);
+        });
+
+        suggestionsBox.hidden = false;
+    }
+
+    function updateActiveSuggestion() {
+        suggestionsBox.querySelectorAll('.suggestion-item').forEach((el, idx) => {
+            el.classList.toggle('active', idx === activeSuggestionIdx);
+        });
+    }
+
+    function hideSuggestions() {
+        suggestionsBox.hidden = true;
+        suggestionsBox.innerHTML = '';
+        activeSuggestionIdx = -1;
+        currentSuggestions = [];
+        // Remove is-searching class if input is empty
+        if (!searchInput.value.trim()) {
+            document.body.classList.remove('is-searching');
+        }
+    }
+
+    function openGame(item) {
+        hideSuggestions();
+        item.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        item.element.style.outline = '3px solid #667eea';
+        setTimeout(() => item.element.style.outline = '', 2000);
+    }
+
+    // Keyboard navigation
+    searchInput.addEventListener('keydown', function(e) {
+        if (suggestionsBox.hidden) {
+            if (e.key === 'Enter') {
+                const firstCard = document.querySelector('.game-card:not([style*="none"]) a.play-button');
+                if (firstCard) firstCard.click();
+            }
+            return;
+        }
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            activeSuggestionIdx = Math.min(activeSuggestionIdx + 1, currentSuggestions.length - 1);
+            updateActiveSuggestion();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeSuggestionIdx = Math.max(activeSuggestionIdx - 1, -1);
+            updateActiveSuggestion();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const pick = activeSuggestionIdx >= 0 ? currentSuggestions[activeSuggestionIdx] : currentSuggestions[0];
+            if (pick) openGame(pick);
+        } else if (e.key === 'Escape') {
+            hideSuggestions();
+            searchInput.blur();
+        }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.search-container')) {
+            hideSuggestions();
+        }
+    });
+
+    // Re-init Fuse after load more
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', function() {
+            setTimeout(() => {
+                if (window.initFuse) window.initFuse();
+            }, 100);
+        });
+    }
 });
