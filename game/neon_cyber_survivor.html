@@ -344,8 +344,13 @@
                     });
                 }, idx * 60);
             });
-        // Uncapped & Persistent DDA System
-        const DDAController = {
+        },
+    };
+
+    // ═══════════════════════════════════════════════════════
+    // Uncapped & Persistent DDA System
+    // ═══════════════════════════════════════════════════════
+    const DDAController = {
             // Skala yang beneran dipakai game — selalu di-smooth, gak pernah lompat tiba-tiba
             difficultyScale: 1.0,
             targetScale: 1.0,       // arah yang dituju, dievaluasi ulang tiap WINDOW_DURATION detik
