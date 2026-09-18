@@ -574,29 +574,22 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // ── Hitung area playable (bukan ketutup HUD) ──
+        // ── Hitung area playable (hardcoded offset, lebih reliable) ──
         function getPlayArea() {
-            const hudEl = document.getElementById('hud');
+            // Offset hardcoded berdasarkan Tailwind class
+            // p-4 = 16px, + 8px margin = 24px top
+            // Bottom: indicator + margin = ~32px (portrait) / 70px (landscape)
+            const isLandscape = window.innerWidth > window.innerHeight;
+            const safeTop = 24; // p-4 + 8px margin
             
-            if (!hudEl || hudEl.classList.contains('hidden')) {
-                return {
-                    minX: 0, maxX: canvas.width,
-                    minY: 0, maxY: canvas.height,
-                    centerX: canvas.width / 2,
-                    centerY: canvas.height / 2,
-                };
+            let safeBottom;
+            if (isLandscape) {
+                // Landscape: nav bar + gesture area ~70px
+                safeBottom = 70;
+            } else {
+                // Portrait: dash indicator + margin ~32px
+                safeBottom = 32;
             }
-            
-            // Ambil tinggi TOP BAR (child pertama dari #hud)
-            const topBar = hudEl.firstElementChild;
-            const topBarHeight = topBar ? topBar.getBoundingClientRect().height : 0;
-            
-            // Ambil tinggi BOTTOM section (dash indicator)
-            const bottomBar = hudEl.children[1];
-            const bottomBarHeight = bottomBar ? bottomBar.getBoundingClientRect().height : 0;
-            
-            const safeTop = topBarHeight + 8;
-            const safeBottom = bottomBarHeight + 8;
             
             return {
                 minX: 0,
@@ -856,21 +849,7 @@
             }
 
             reset() {
-                // Paksa HUD muncul sebentar biar tinggi top bar kehitung
-                const hud = document.getElementById('hud');
-                const wasHidden = hud.classList.contains('hidden');
-                if (wasHidden) {
-                    hud.classList.remove('hidden');
-                    hud.style.visibility = 'hidden';
-                }
-                
                 const playArea = getPlayArea();
-                
-                if (wasHidden) {
-                    hud.classList.add('hidden');
-                    hud.style.visibility = '';
-                }
-                
                 this.x = playArea.centerX;
                 this.y = playArea.centerY;
                 this.hp = 100;
