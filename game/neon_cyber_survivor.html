@@ -51,8 +51,51 @@
 
         /* ── Safe Area untuk Mobile (notch, gesture bar, nav bar) ── */
         #btn-dash-touch {
-            bottom: calc(3rem + env(safe-area-inset-bottom, 0px)) !important;
+            bottom: calc(2rem + env(safe-area-inset-bottom, 0px) + env(safe-area-inset-top, 0px)) !important;
             right: calc(1rem + env(safe-area-inset-right, 0px)) !important;
+        }
+
+        /* ── Landscape mobile (HP rebah) ── */
+        @media (orientation: landscape) and (max-height: 500px) {
+            #btn-dash-touch {
+                width: 60px !important;
+                height: 60px !important;
+                font-size: 11px !important;
+                bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+                right: calc(1rem + env(safe-area-inset-right, 0px)) !important;
+            }
+            
+            /* Joystick area lebih tinggi + lebih kecil */
+            #joystick-zone {
+                width: 110px !important;
+                height: 110px !important;
+            }
+            
+            #joystick-handle {
+                width: 44px !important;
+                height: 44px !important;
+            }
+            
+            /* HUD compact di landscape */
+            #hud {
+                padding: 6px 12px !important;
+            }
+            
+            #hud .glass-panel {
+                padding: 4px 10px !important;
+            }
+            
+            /* HP bar di landscape lebih pendek */
+            #hud .h-3 { height: 6px !important; }
+            #hud .h-2 { height: 4px !important; }
+            #hud .text-xl { font-size: 1rem !important; }
+            #hud .text-xs { font-size: 9px !important; }
+            
+            /* Sembunyiin Dash indicator di tengah biar gak makan ruang */
+            #dash-indicator {
+                font-size: 9px !important;
+                margin-bottom: 0 !important;
+            }
         }
 
         /* ── Extra spacing di mobile kecil ── */
@@ -195,80 +238,112 @@
         // Web Audio Synthesizer for Retro Arcade Sounds
         const SoundEngine = {
             ctx: null,
-            muted: false,
-            init() {
-                if (!this.ctx) {
-                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-            },
-            playLaser() {
-                if (this.muted || !this.ctx) return;
-                try {
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(800, this.ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.08);
-                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start();
-                    osc.stop(this.ctx.currentTime + 0.08);
-                } catch (e) {}
-            },
-            playExplosion() {
-                if (this.muted || !this.ctx) return;
-                try {
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(120, this.ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(20, this.ctx.currentTime + 0.2);
-                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start();
-                    osc.stop(this.ctx.currentTime + 0.2);
-                } catch (e) {}
-            },
-            playGem() {
-                if (this.muted || !this.ctx) return;
-                try {
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(1000, this.ctx.currentTime);
-                    osc.frequency.setValueAtTime(1400, this.ctx.currentTime + 0.04);
-                    gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start();
-                    osc.stop(this.ctx.currentTime + 0.08);
-                } catch (e) {}
-            },
-            playLevelUp() {
-                if (this.muted || !this.ctx) return;
-                try {
-                    const notes = [440, 554.37, 659.25, 880];
-                    notes.forEach((freq, idx) => {
-                        const osc = this.ctx.createOscillator();
-                        const gain = this.ctx.createGain();
-                        osc.type = 'triangle';
-                        osc.frequency.value = freq;
-                        gain.gain.setValueAtTime(0.15, this.ctx.currentTime + idx * 0.06);
-                        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.06 + 0.15);
-                        osc.connect(gain);
-                        gain.connect(this.ctx.destination);
-                        osc.start(this.ctx.currentTime + idx * 0.06);
-                        osc.stop(this.ctx.currentTime + idx * 0.06 + 0.15);
-                    });
-                } catch (e) {}
+        masterGain: null,
+        muted: false,
+        activeSounds: 0,
+        MAX_CONCURRENT: 6,   // max 6 sound bersamaan
+        
+        init() {
+            if (!this.ctx) {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Master gain node — semua sound lewat sini
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.value = 0.35;  // volume total (max 0.35 = aman)
+                this.masterGain.connect(this.ctx.destination);
             }
-        };
-
+        },
+        
+        // Helper buat bikin sound dengan throttle
+        _playSound(config) {
+            if (this.muted || !this.ctx) return;
+            
+            // Throttle: kalau terlalu banyak sound, skip
+            if (this.activeSounds >= this.MAX_CONCURRENT) return;
+            
+            try {
+                this.activeSounds++;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = config.type || 'sawtooth';
+                
+                // Frequency
+                if (config.freqStart && config.freqEnd) {
+                    osc.frequency.setValueAtTime(config.freqStart, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(
+                        config.freqEnd, 
+                        this.ctx.currentTime + config.duration
+                    );
+                } else {
+                    osc.frequency.setValueAtTime(config.freqStart || 800, this.ctx.currentTime);
+                }
+                
+                // Gain envelope — max 0.15 biar gak clipping
+                const peakGain = Math.min(config.gain || 0.1, 0.15);
+                gain.gain.setValueAtTime(peakGain, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + config.duration);
+                
+                // Connect ke master gain (bukan langsung ke destination)
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                
+                osc.start();
+                osc.stop(this.ctx.currentTime + config.duration);
+                
+                // Release lock setelah sound selesai
+                osc.onended = () => {
+                    this.activeSounds = Math.max(0, this.activeSounds - 1);
+                };
+            } catch (e) {
+                this.activeSounds = Math.max(0, this.activeSounds - 1);
+            }
+        },
+        
+        playLaser() {
+            this._playSound({
+                type: 'sawtooth',
+                freqStart: 800,
+                freqEnd: 150,
+                gain: 0.08,
+                duration: 0.08,
+            });
+        },
+        
+        playExplosion() {
+            this._playSound({
+                type: 'square',
+                freqStart: 120,
+                freqEnd: 20,
+                gain: 0.12,
+                duration: 0.2,
+            });
+        },
+        
+        playGem() {
+            this._playSound({
+                type: 'sine',
+                freqStart: 1000,
+                freqEnd: 1400,
+                gain: 0.06,
+                duration: 0.08,
+            });
+        },
+        
+        playLevelUp() {
+            if (this.muted || !this.ctx) return;
+            // Level up pake notes khusus
+            const notes = [440, 554.37, 659.25, 880];
+            notes.forEach((freq, idx) => {
+                setTimeout(() => {
+                    this._playSound({
+                        type: 'triangle',
+                        freqStart: freq,
+                        gain: 0.08,
+                        duration: 0.15,
+                    });
+                }, idx * 60);
+            });
         // Uncapped & Persistent DDA System
         const DDAController = {
             // Skala yang beneran dipakai game — selalu di-smooth, gak pernah lompat tiba-tiba
@@ -428,22 +503,44 @@
 
         // ── Floating joystick: muncul di posisi tap ──
         function isInJoystickArea(x, y) {
-            // Area kiri bawah: 45% lebar, 50% tinggi
-            const areaCheck = x < window.innerWidth * 0.45 && y > window.innerHeight * 0.5;
-            console.log('Joystick area check:', x, y, 'width:', window.innerWidth, 'height:', window.innerHeight, 'inArea:', areaCheck);
-            return areaCheck;
+            const isLandscape = window.innerWidth > window.innerHeight;
+            
+            // Area tap: 45% lebar, 50% tinggi (portrait) atau 40% lebar (landscape)
+            const widthLimit = isLandscape ? window.innerWidth * 0.4 : window.innerWidth * 0.45;
+            const heightStart = isLandscape ? window.innerHeight * 0.35 : window.innerHeight * 0.5;
+            
+            // Batas bawah: hindari nav bar + gesture area
+            const safeBottom = 70; // px dari bawah
+            const maxY = window.innerHeight - safeBottom;
+            
+            return x < widthLimit && y > heightStart && y < maxY;
         }
 
         function showJoystickAt(x, y) {
             console.log('Showing joystick at:', x, y);
             const half = joystick.zoneSize / 2;
-            joystickZone.style.left = (x - half) + 'px';
-            joystickZone.style.top = (y - half) + 'px';
+            const isLandscape = window.innerWidth > window.innerHeight;
+            
+            // Clamp biar joystick GAK tenggelam di nav bar Android
+            const minX = half + 8;
+            const maxX = window.innerWidth - half - 8;
+            
+            // Y: hindari HUD atas (~80px) dan nav bar bawah (~90px di landscape)
+            const topMargin = isLandscape ? 50 : 100;
+            const bottomMargin = isLandscape ? 90 : 120;
+            const minY = half + topMargin;
+            const maxY = window.innerHeight - half - bottomMargin;
+            
+            const clampedX = Math.max(minX, Math.min(maxX, x));
+            const clampedY = Math.max(minY, Math.min(maxY, y));
+            
+            joystickZone.style.left = (clampedX - half) + 'px';
+            joystickZone.style.top = (clampedY - half) + 'px';
             joystickZone.style.opacity = '1';
             joystickZone.style.pointerEvents = 'none';
             
-            joystick.startX = x;
-            joystick.startY = y;
+            joystick.startX = clampedX;
+            joystick.startY = clampedY;
             joystick.active = true;
             joystickHandle.style.transform = 'translate(0, 0)';
         }
@@ -549,6 +646,32 @@
 
         document.addEventListener('touchend', handleJoystickEnd);
         document.addEventListener('touchcancel', handleJoystickEnd);
+
+        // ── Handle orientation change ──
+        window.addEventListener('orientationchange', () => {
+            if (joystick.active) {
+                hideJoystick();
+            }
+            setTimeout(resizeCanvas, 300);
+        });
+
+        // Resize + reset joystick kalau viewport berubah
+        let lastWidth = window.innerWidth;
+        let lastHeight = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            const widthDiff = Math.abs(window.innerWidth - lastWidth);
+            const heightDiff = Math.abs(window.innerHeight - lastHeight);
+            
+            // Kalau perubahan signifikan = orientation change
+            if (widthDiff > 100 || heightDiff > 100) {
+                if (joystick.active) hideJoystick();
+                setTimeout(resizeCanvas, 100);
+            }
+            
+            lastWidth = window.innerWidth;
+            lastHeight = window.innerHeight;
+        });
 
         // ── Dash button ──
         btnDashTouch.addEventListener('touchstart', (e) => {
