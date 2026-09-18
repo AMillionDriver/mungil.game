@@ -454,12 +454,21 @@
         }
 
         // ── Event: touchstart di area mana aja ──
-        touchControls.addEventListener('touchstart', (e) => {
+        document.addEventListener('touchstart', (e) => {
             if (gameState !== 'PLAYING') return;
             
             const touch = e.changedTouches[0];
             const touchX = touch.clientX;
             const touchY = touch.clientY;
+            
+            // Skip kalau user tap di tombol dash
+            if (e.target.closest('#btn-dash-touch')) return;
+            
+            // Skip kalau user tap di UI element lain (menu, dll)
+            const uiElements = ['btn-sound', 'btn-start', 'btn-restart'];
+            for (const id of uiElements) {
+                if (e.target.closest('#' + id)) return;
+            }
             
             // Kalau di area joystick + belum ada joystick aktif
             if (isInJoystickArea(touchX, touchY) && !joystick.active) {
@@ -470,7 +479,7 @@
         }, { passive: false });
 
         // ── Event: touchmove ──
-        touchControls.addEventListener('touchmove', (e) => {
+        document.addEventListener('touchmove', (e) => {
             if (!joystick.active) return;
             
             let touch = null;
@@ -513,8 +522,8 @@
             }
         };
 
-        touchControls.addEventListener('touchend', handleJoystickEnd);
-        touchControls.addEventListener('touchcancel', handleJoystickEnd);
+        document.addEventListener('touchend', handleJoystickEnd);
+        document.addEventListener('touchcancel', handleJoystickEnd);
 
         // ── Dash button ──
         btnDashTouch.addEventListener('touchstart', (e) => {
