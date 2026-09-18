@@ -48,6 +48,14 @@
             height: 100vh;
             background: radial-gradient(circle at center, #0a0e27 0%, #03040c 100%);
         }
+        
+        /* Landscape mobile: zoom out untuk area lebih luas */
+        @media (orientation: landscape) and (max-height: 500px) {
+            canvas {
+                transform-origin: center center;
+                transform: scale(0.85);
+            }
+        }
 
         /* ── Safe Area: DEFAULT (portrait) ── */
         #btn-dash-touch {
@@ -92,7 +100,7 @@
             #hud .mt-1 { margin-top: 1px !important; }
             #hud .flex-1 .text-xs { font-size: 8px !important; }
             
-            /* ── Kills/Waktu badges ── */
+            /* ── Kills/Waktu/RANK badges ── */
             #hud .glass-panel {
                 padding: 2px 6px !important;
                 border-radius: 6px !important;
@@ -106,13 +114,26 @@
                 line-height: 1 !important;
             }
             
-            /* ── Sound button ── */
+            /* RANK badge */
+            #rank-badge {
+                min-width: 70px !important;
+            }
+            
+            /* ── Sound button: position fixed dalam top bar ── */
             #btn-sound {
                 padding: 4px !important;
+                margin-right: 8px !important;
+                position: relative !important;
             }
             #btn-sound svg {
                 width: 14px !important;
                 height: 14px !important;
+            }
+            
+            /* Top bar wrapper: pastikan button tidak keluar */
+            #hud > div:first-child {
+                flex-wrap: wrap !important;
+                justify-content: center !important;
             }
             
             /* ── Sembunyiin dash indicator ── */
@@ -238,6 +259,17 @@
                 <div id="kill-count" class="text-xl font-bold font-orbitron text-cyan-400">0</div>
             </div>
             
+            <!-- RANK Badge (DMC-style) -->
+            <div id="rank-badge" class="glass-panel px-4 py-2 rounded-xl border border-amber-500/40 text-center min-w-[80px] hidden">
+                <div class="text-[10px] uppercase text-amber-500 tracking-widest">RANK</div>
+                <div id="rank-value" class="text-xl font-bold font-orbitron text-amber-400">E</div>
+            </div>
+            
+            <div class="glass-panel px-4 py-2 rounded-xl border border-pink-500/40 text-center min-w-[120px]">
+                <div class="text-[10px] uppercase text-pink-300 tracking-widest">Waktu</div>
+                <div id="timer-text" class="text-xl font-bold font-orbitron text-pink-400">00:00</div>
+            </div>
+            
             <div class="glass-panel px-4 py-2 rounded-xl border border-pink-500/40 text-center min-w-[120px]">
                 <div class="text-[10px] uppercase text-pink-300 tracking-widest">Waktu</div>
                 <div id="timer-text" class="text-xl font-bold font-orbitron text-pink-400">00:00</div>
@@ -294,6 +326,11 @@
                 <div class="font-bold text-white mb-1 font-orbitron">KONTROL:</div>
                 <div>🎮 <b>PC:</b> W, A, S, D / Panah (Jalan), Spasi (Dash), Mouse (Arah Senjata)</div>
                 <div>📱 <b>Mobile:</b> Analog virtual di layar & Tombol Dash</div>
+                
+                <div class="mt-2 font-bold text-white mb-1 font-orbitron">SYSTEM:</div>
+                <div>🎯 <b>Accuracy RANK:</b> S/A/B/C/D/E based on hit rate & streaks</div>
+                <div>🧠 <b>Tactical Enemies:</b> Flank smarter when you're skilled</div>
+                <div>⚡ <b>Random Bonus:</b> 3-7% chance for long-range hits</div>
             </div>
 
             <button id="btn-start" class="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-pink-500 text-white font-orbitron font-extrabold text-lg tracking-wider hover:opacity-90 active:scale-95 transition shadow-[0_0_25px_rgba(0,243,255,0.6)]">
@@ -465,9 +502,10 @@
             // Penilaian performa dalam jendela waktu berjalan (ala RE4: dievaluasi
             // berkala berdasarkan kondisi TERKINI pemain, bukan akumulasi seumur hidup)
             windowTimer: 0,
-            WINDOW_DURATION: 8, // re-evaluate tiap 8 detik
+            WINDOW_DURATION: 12, // re-evaluate tiap 12 detik (lebih lama untuk trend yang lebih akurat)
             damageTakenInWindow: 0,
             killsInWindow: 0,
+            consecutiveKillsInWindow: 0, // track streak untuk lebih progressive
 
             // Statistik lifetime, dipakai buat anti-idle & anti-overpowered check ringan
             totalDistanceMoved: 0,
@@ -493,20 +531,30 @@
 
                 // Evaluasi performa tiap WINDOW_DURATION detik — liat kondisi
                 // pemain SEKARANG, lalu putuskan naik/turun sedikit.
+                // Sistem lebih progressive & adaptive ala RE4: small steps, recovery cepat
                 if (this.windowTimer >= this.WINDOW_DURATION) {
                     const hpRatio = player.hp / player.maxHp;
-                    let delta;
+                    let delta = 0;
 
-                    if (this.damageTakenInWindow === 0 && this.killsInWindow >= 4) {
-                        delta = 0.4;   // jago banget, gak kena hit sama sekali -> naikin tantangan
-                    } else if (this.damageTakenInWindow < 10 && this.killsInWindow >= 2) {
-                        delta = 0.15;  // performa bagus -> naik dikit
-                    } else if (hpRatio < 0.25) {
-                        delta = -0.5;  // HP kritis -> kasih napas beneran
-                    } else if (this.damageTakenInWindow > 30) {
-                        delta = -0.25; // sering kena hit -> turunin
-                    } else {
-                        delta = 0.05;  // performa medium -> tetep ada progres pelan
+                    // CRITICAL: HP rendah → help player cepat (RE4 style: generous when struggling)
+                    if (hpRatio < 0.25) {
+                        delta = -0.2;  // drop cukup besar tapi tidak ekstrem
+                    }
+                    // HIGH PERFORMANCE: kill streak tanpa kena hit → challenge naik pelan
+                    else if (this.consecutiveKillsInWindow >= 5 && this.damageTakenInWindow < 5) {
+                        delta = 0.1;   // naik kecil untuk tetap interesting
+                    }
+                    // MODERATE: baik overall → naik sedikit progressive
+                    else if (this.damageTakenInWindow < 15 && this.killsInWindow >= 4) {
+                        delta = 0.05;  // small step up
+                    }
+                    // SUFFERING: banyak kena hit → drop untuk recovery
+                    else if (this.damageTakenInWindow > 20) {
+                        delta = -0.1;  // drop moderate
+                    }
+                    // DEFAULT: keep momentum tetap ada progression slow
+                    else if (this.killsInWindow >= 2) {
+                        delta = 0.02;  // tiny increase
                     }
 
                     this.targetScale = Math.min(this.maxScale, Math.max(this.minScale, this.targetScale + delta));
@@ -514,6 +562,7 @@
                     this.windowTimer = 0;
                     this.damageTakenInWindow = 0;
                     this.killsInWindow = 0;
+                    this.consecutiveKillsInWindow = 0;
                 }
 
                 // Interpolasi halus menuju target — gak pernah lompat instan
@@ -530,10 +579,12 @@
             recordDamage(amount) {
                 this.damageTakenTotal += amount;
                 this.damageTakenInWindow += amount;
+                this.consecutiveKillsInWindow = 0;  // reset streak when damaged (RE4 adaptive style)
             },
 
             recordKill() {
                 this.killsInWindow++;
+                this.consecutiveKillsInWindow++;  // track kill streak for progressive scaling
             },
 
             getSpawnRateMultiplier() {
@@ -565,11 +616,116 @@
         let gameTime = 0;
         let killCount = 0;
         let animationFrameId;
+        
+        // ═══════════════════════════════════════════════════════
+        // SHOOTING & ACCURACY SYSTEM (DMC-style RANK tracking)
+        // ═══════════════════════════════════════════════════════
+        const ShootingStats = {
+            totalShots: 0,
+            totalHits: 0,
+            totalMisses: 0,
+            lastShotTime: 0,
+            consecutiveHits: 0,
+            consecutiveMisses: 0,
+            maxConsecutiveHits: 0,
+            
+            recordShot(hit) {
+                this.totalShots++;
+                if (hit) {
+                    this.totalHits++;
+                    this.consecutiveHits++;
+                    this.consecutiveMisses = 0;
+                    this.maxConsecutiveHits = Math.max(this.maxConsecutiveHits, this.consecutiveHits);
+                } else {
+                    this.totalMisses++;
+                    this.consecutiveMisses++;
+                    this.consecutiveHits = 0;
+                }
+            },
+            
+            reset() {
+                this.totalShots = 0;
+                this.totalHits = 0;
+                this.totalMisses = 0;
+                this.lastShotTime = 0;
+                this.consecutiveHits = 0;
+                this.consecutiveMisses = 0;
+                this.maxConsecutiveHits = 0;
+            },
+            
+            getAccuracy() {
+                return this.totalShots > 0 ? this.totalHits / this.totalShots : 0;
+            },
+            
+            getRank() {
+                // DMC-style RANK based on accuracy and streaks
+                const accuracy = this.getAccuracy();
+                const hitRate = this.totalShots > 0 ? this.totalHits / this.totalShots : 0;
+                const streakBonus = this.maxConsecutiveHits / 20; // bonus untuk streak panjang
+                
+                if (hitRate >= 0.85 && this.maxConsecutiveHits >= 10) return 'S';
+                if (hitRate >= 0.75 && this.maxConsecutiveHits >= 8) return 'A';
+                if (hitRate >= 0.60) return 'B';
+                if (hitRate >= 0.45) return 'C';
+                if (hitRate >= 0.30) return 'D';
+                return 'E';
+            },
+        };
+        
+        // ═══════════════════════════════════════════════════════
+        // GAME DIRECTOR (Left 4 Dead style)
+        // ═══════════════════════════════════════════════════════
+        const GameDirector = {
+            difficulty: 1.0,      // current overall difficulty multiplier
+            baseDifficulty: 1.0,  // base difficulty
+            chaosFactor: 0.0,     // dynamic factor based on player performance
+            
+            update() {
+                const accuracy = ShootingStats.getAccuracy();
+                const rank = ShootingStats.getRank();
+                
+                // Calculate chaos factor based on performance
+                // Good player = more challenge, struggling player = help
+                if (accuracy > 0.8) {
+                    this.chaosFactor = Math.min(0.5, this.chaosFactor + 0.02); // very skilled player
+                } else if (accuracy > 0.6) {
+                    this.chaosFactor = Math.min(0.3, this.chaosFactor + 0.01); // good player
+                } else if (accuracy < 0.3) {
+                    this.chaosFactor = Math.max(-0.2, this.chaosFactor - 0.03); // struggling player
+                } else {
+                    this.chaosFactor += (0.0 - this.chaosFactor) * 0.05; // normalize
+                }
+                
+                this.difficulty = this.baseDifficulty + this.chaosFactor;
+                this.baseDifficulty = 1.0 + (gameTime / 300); // slow base increase over time
+                
+                // Ensure difficulty stays within bounds
+                this.difficulty = Math.max(0.7, Math.min(2.0, this.difficulty));
+            },
+            
+            getMultiplier() {
+                return this.difficulty;
+            },
+            
+            // Should bullet from long distance hit? (random 3-7% chance to prevent predictable misses)
+            shouldHitLongDistance(distance) {
+                if (distance > 400) { // only for long range shots
+                    // 3-7% random chance (unpredictable)
+                    return Math.random() < (0.03 + Math.random() * 0.04);
+                }
+                return true; // close range always has chance to hit
+            }
+        };
 
         // Resize Canvas
         function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            // Landscape mobile: canvas lebih kecil untuk zoom out effect
+            const isLandscape = window.innerWidth > window.innerHeight && window.innerHeight <= 500;
+            const scaleX = isLandscape ? 0.85 : 1.0;
+            const scaleY = isLandscape ? 0.85 : 1.0;
+            
+            canvas.width = Math.floor(window.innerWidth * scaleX);
+            canvas.height = Math.floor(window.innerHeight * scaleY);
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
@@ -785,7 +941,13 @@
             if (joystick.active) {
                 hideJoystick();
             }
-            setTimeout(resizeCanvas, 300);
+            setTimeout(() => {
+                resizeCanvas();
+                // Recalculate player position after resize
+                if (gameState === 'PLAYING' && player) {
+                    player.reset();
+                }
+            }, 300);
         });
 
         // Resize + reset joystick kalau viewport berubah
@@ -829,8 +991,8 @@
                 this.xp = 0;
                 this.nextXp = 50;
                 
-                // Stats & Upgrades
-                this.fireRate = 250; // ms
+                // Stats & Upgrades (slower starting fire rate for better balance)
+                this.fireRate = 400; // ms (was 250, now slower for early game)
                 this.lastShot = 0;
                 this.bulletDamage = 25;
                 this.bulletSpeed = 10;
@@ -943,13 +1105,29 @@
                 // Apply uncapped damage multiplier (×2.0 when HP < 10%)
                 const effectiveDamage = this.bulletDamage * DDAController.getPlayerDamageMultiplier();
 
-                // Multi-bullet spread
-                const spread = 0.15;
+                // Multi-bullet spread (more accurate when player is skilled)
+                const accuracyBonus = ShootingStats.getAccuracy() * 0.15; // up to 15% spread reduction
+                const spread = Math.max(0.08, 0.15 - accuracyBonus);
                 const startAngle = targetAngle - ((this.bulletCount - 1) * spread) / 2;
 
+                // Check if player has good accuracy to give bonus (DMC-style RANK system)
+                const playerRank = ShootingStats.getRank();
+                const isRankBonus = playerRank === 'S' || playerRank === 'A';
+
                 for (let i = 0; i < this.bulletCount; i++) {
-                    const angle = startAngle + i * spread;
+                    let angle = startAngle + i * spread;
+                    
+                    // Random accuracy bonus for skilled players (3-7% chance to hit at long range)
+                    // This prevents predictable misses and rewards consistent aiming
+                    if (isRankBonus && minDist > 300 && GameDirector.shouldHitLongDistance(minDist)) {
+                        // Small angle correction for long-range shots
+                        angle += (Math.random() - 0.5) * 0.1; // ±5° correction
+                    }
+                    
                     bullets.push(new Bullet(this.x, this.y, angle, this.bulletSpeed, effectiveDamage));
+                    
+                    // Track shot accuracy (will be updated on bullet-enemy collision)
+                    ShootingStats.lastShotTime = Date.now();
                 }
 
                 SoundEngine.playLaser();
@@ -1064,8 +1242,8 @@
                 this.type = type;
                 this.markedForDeletion = false;
 
-                // Apply uncapped difficulty scaling
-                const scale = DDAController.difficultyScale;
+                // Apply GameDirector difficulty (adaptive based on player performance)
+                const scale = GameDirector.getMultiplier();
 
                 if (type === 'boss') {
                     this.radius = 35;
@@ -1083,6 +1261,16 @@
                     this.color = '#ffcc00';
                     this.xpValue = 15;
                     this.damage = 8 * scale;
+                } else if (type === 'tactical') {
+                    // Tactical enemies: smarter, change direction to flank player
+                    this.radius = 16;
+                    this.speed = 2.3 * scale;
+                    this.hp = (55 + gameTime * 0.35) * scale;
+                    this.maxHp = this.hp;
+                    this.color = '#ff4499';
+                    this.xpValue = 25;
+                    this.damage = 14 * scale;
+                    this.flankDirection = 1; // +1 or -1 for side approach
                 } else { // Standard Drone
                     this.radius = 14;
                     this.speed = 2.0 * scale;
@@ -1095,9 +1283,26 @@
             }
 
             update() {
-                const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                this.x += Math.cos(angle) * this.speed;
-                this.y += Math.sin(angle) * this.speed;
+                if (this.type === 'tactical') {
+                    // Tactical AI: flank the player from the side
+                    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+                    const targetX = player.x + this.flankDirection * 80; // target position to side
+                    const targetY = player.y;
+                    
+                    // Change flank direction periodically
+                    if (Math.random() < 0.005) {
+                        this.flankDirection *= -1;
+                    }
+                    
+                    const angle = Math.atan2(targetY - this.y, targetX - this.x);
+                    this.x += Math.cos(angle) * this.speed;
+                    this.y += Math.sin(angle) * this.speed;
+                } else {
+                    // Standard AI: direct chase
+                    const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    this.x += Math.cos(angle) * this.speed;
+                    this.y += Math.sin(angle) * this.speed;
+                }
 
                 // Player collision damage
                 const d = Math.hypot(player.x - this.x, player.y - this.y);
@@ -1230,18 +1435,27 @@
             }
         }
 
-        // Spawner Manager
+        // Spawner Manager (GameDirector controlled)
         let lastSpawn = 0;
         let bossSpawned = false;
 
         function spawnManager(now) {
             const baseSpawnRate = Math.max(400, 1900 - gameTime * 15);
-            const spawnRate = baseSpawnRate / DDAController.difficultyScale;
+            const spawnRate = baseSpawnRate / GameDirector.getMultiplier();
 
             if (now - lastSpawn > spawnRate) {
                 const rand = Math.random();
-                // Spawn more fast enemies at high difficulty
-                if (rand < 0.25 + Math.min(0.5, DDAController.difficultyScale * 0.15)) {
+                
+                // Player RANK determines enemy types (DMC-style progression)
+                const playerRank = ShootingStats.getRank();
+                const isSkilledPlayer = playerRank === 'S' || playerRank === 'A';
+                
+                // Skilled players get tactical enemies that adapt their behavior
+                if (isSkilledPlayer && rand < 0.35) {
+                    // Tactical enemies (new type - smarter, adapt to player position)
+                    enemies.push(new Enemy('tactical'));
+                } else if (rand < 0.30 + GameDirector.chaosFactor) {
+                    // More fast enemies when GameDirector detects chaos
                     enemies.push(new Enemy('fast'));
                 } else {
                     enemies.push(new Enemy('drone'));
@@ -1312,8 +1526,9 @@
                 player.update();
                 spawnManager(performance.now());
 
-                // DDA update and UI feedback
+                // DDA update and UI feedback (integrated with GameDirector)
                 DDAController.update(dt);
+                GameDirector.update();
 
                 // Bullet updates & collision
                 bullets.forEach(b => b.update());
@@ -1329,9 +1544,24 @@
                             if (d < bullet.radius + enemy.radius) {
                                 enemy.takeDamage(bullet.damage);
                                 bullet.markedForDeletion = true;
+                                // Record hit for accuracy tracking
+                                ShootingStats.recordShot(true);
                             }
                         }
                     });
+                });
+                
+                // Track bullets that went off-screen without hitting (misses)
+                bullets.forEach(bullet => {
+                    if (bullet.markedForDeletion) return;
+                    const now = Date.now();
+                    if (now - ShootingStats.lastShotTime > 1000) { // 1 second after shot = probably missed
+                        // Only record miss if we haven't already
+                        if (!bullet.tracked) {
+                            ShootingStats.recordShot(false);
+                            bullet.tracked = true;
+                        }
+                    }
                 });
 
                 // Cleanup deleted entities
@@ -1371,6 +1601,25 @@
 
             document.getElementById('kill-count').innerText = killCount;
 
+            // Update RANK display (show after first shot)
+            const rankBadge = document.getElementById('rank-badge');
+            const rankValue = document.getElementById('rank-value');
+            if (ShootingStats.totalShots > 0) {
+                rankBadge.classList.remove('hidden');
+                rankValue.innerText = ShootingStats.getRank();
+                
+                // Color based on rank
+                const rank = ShootingStats.getRank();
+                if (rank === 'S') rankValue.style.color = '#fbbf24'; // gold
+                else if (rank === 'A') rankValue.style.color = '#f97316'; // orange
+                else if (rank === 'B') rankValue.style.color = '#facc15'; // yellow
+                else if (rank === 'C') rankValue.style.color = '#84cc16'; // green
+                else if (rank === 'D') rankValue.style.color = '#14b8a6'; // teal
+                else rankValue.style.color = '#6b7280'; // gray
+            } else {
+                rankBadge.classList.add('hidden');
+            }
+
             const mins = Math.floor(gameTime / 60).toString().padStart(2, '0');
             const secs = Math.floor(gameTime % 60).toString().padStart(2, '0');
             document.getElementById('timer-text').innerText = `${mins}:${secs}`;
@@ -1404,6 +1653,7 @@
             particles = [];
             gameTime = 0;
             killCount = 0;
+            ShootingStats.reset(); // Reset accuracy tracking
 
             // Initialize DDA after player is fully reset
             DDAController.initialized = true;
@@ -1412,6 +1662,7 @@
             DDAController.windowTimer = 0;
             DDAController.damageTakenInWindow = 0;
             DDAController.killsInWindow = 0;
+            DDAController.consecutiveKillsInWindow = 0;
             DDAController.totalDistanceMoved = 0;
             DDAController.damageTakenTotal = 0;
             DDAController.lastPlayerX = player.x;
