@@ -48,14 +48,14 @@
             height: 100vh;
             background: radial-gradient(circle at center, #0a0e27 0%, #03040c 100%);
         }
-        
-        /* Landscape mobile: zoom out untuk area lebih luas */
-        @media (orientation: landscape) and (max-height: 500px) {
-            canvas {
-                transform-origin: center center;
-                transform: scale(0.85);
-            }
-        }
+        /* CATATAN: canvas SENGAJA gak di-CSS-transform-scale di sini.
+           resizeCanvas() (JS) udah ngatur ukuran main lewat canvas.width/height
+           langsung -- itu satu-satunya sumber kebenaran ukuran area bermain,
+           dipakai juga sama getPlayArea() buat logic gameplay. Nambahin
+           transform:scale() di CSS di atas itu bikin canvas ke-scale DUA KALI
+           (JS + CSS numpuk), sementara #hud (overlay HP/Kills/Waktu) gak ikut
+           ke-scale karena transform gak nembus ke sibling element -- dua sistem
+           koordinat jadi gak sinkron dan bikin layout keliatan kacau. */
 
         /* ── Safe Area: DEFAULT (portrait) ── */
         #btn-dash-touch {
@@ -66,7 +66,7 @@
         /* ═══════════════════════════════════════════════════════════════
    LANDSCAPE MOBILE — COMPACT MODE
    ═══════════════════════════════════════════════════════════════ */
-        @media (orientation: landscape) and (max-height: 500px) {
+        @media (orientation: landscape) and (max-height: 600px) {
             
             /* ── HUD padding minimal ── */
             #hud {
@@ -720,7 +720,7 @@
         // Resize Canvas
         function resizeCanvas() {
             // Landscape mobile: canvas lebih kecil untuk zoom out effect
-            const isLandscape = window.innerWidth > window.innerHeight && window.innerHeight <= 500;
+            const isLandscape = window.innerWidth > window.innerHeight && window.innerHeight <= 600;
             const scaleX = isLandscape ? 0.85 : 1.0;
             const scaleY = isLandscape ? 0.85 : 1.0;
             
