@@ -50,11 +50,6 @@
         }
 
         /* ── Safe Area untuk Mobile (notch, gesture bar, nav bar) ── */
-        #joystick-zone {
-            bottom: calc(2rem + env(safe-area-inset-bottom, 0px)) !important;
-            left: calc(1rem + env(safe-area-inset-left, 0px)) !important;
-        }
-
         #btn-dash-touch {
             bottom: calc(3rem + env(safe-area-inset-bottom, 0px)) !important;
             right: calc(1rem + env(safe-area-inset-right, 0px)) !important;
@@ -62,9 +57,6 @@
 
         /* ── Extra spacing di mobile kecil ── */
         @media (max-width: 500px) {
-            #joystick-zone {
-                bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px)) !important;
-            }
             #btn-dash-touch {
                 bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px)) !important;
             }
@@ -129,9 +121,14 @@
 
     <!-- Mobile Virtual Joystick Controls -->
     <div id="touch-controls" class="absolute inset-0 pointer-events-none z-20 hidden">
-        <div id="joystick-zone" class="absolute bottom-8 left-8 w-36 h-36 rounded-full border-2 border-cyan-500/30 bg-cyan-950/20 pointer-events-auto flex items-center justify-center">
+        <!-- Joystick dinamis — posisinya di-set JS saat user tap -->
+        <div id="joystick-zone" 
+             class="absolute w-36 h-36 rounded-full border-2 border-cyan-500/30 bg-cyan-950/20 pointer-events-none flex items-center justify-center opacity-0 transition-opacity duration-150"
+             style="left: 0; top: 0;">
             <div id="joystick-handle" class="w-14 h-14 rounded-full bg-cyan-400/80 border-2 border-white shadow-[0_0_15px_#00f3ff] transition-transform duration-75"></div>
         </div>
+        
+        <!-- Dash button tetap fixed -->
         <button id="btn-dash-touch" class="absolute bottom-12 right-12 w-20 h-20 rounded-full bg-pink-600/60 border-2 border-pink-400 text-white font-orbitron font-bold text-sm pointer-events-auto flex items-center justify-center active:scale-95 shadow-[0_0_20px_#ff0055]">
             DASH
         </button>
@@ -420,32 +417,62 @@
             dx: 0,
             dy: 0,
             dist: 0,
-            pointerId: null
+            pointerId: null,
+            zoneSize: 144  // w-36 = 144px
         };
 
         const joystickZone = document.getElementById('joystick-zone');
         const joystickHandle = document.getElementById('joystick-handle');
         const btnDashTouch = document.getElementById('btn-dash-touch');
+        const touchControls = document.getElementById('touch-controls');
 
-        // ── Multi-touch aware joystick ──
-        joystickZone.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const touch = e.changedTouches[0];
-            joystick.pointerId = touch.identifier;
+        // ── Floating joystick: muncul di posisi tap ──
+        function isInJoystickArea(x, y) {
+            // Area kiri bawah: 45% lebar, 60% tinggi
+            return x < window.innerWidth * 0.45 && y > window.innerHeight * 0.4;
+        }
+
+        function showJoystickAt(x, y) {
+            const half = joystick.zoneSize / 2;
+            joystickZone.style.left = (x - half) + 'px';
+            joystickZone.style.top = (y - half) + 'px';
+            joystickZone.style.opacity = '1';
             
-            const rect = joystickZone.getBoundingClientRect();
+            joystick.startX = x;
+            joystick.startY = y;
             joystick.active = true;
-            joystick.startX = rect.left + rect.width / 2;
-            joystick.startY = rect.top + rect.height / 2;
+            joystickHandle.style.transform = 'translate(0, 0)';
+        }
+
+        function hideJoystick() {
+            joystickZone.style.opacity = '0';
+            joystick.active = false;
+            joystick.pointerId = null;
+            joystick.dx = 0;
+            joystick.dy = 0;
+            joystickHandle.style.transform = 'translate(0, 0)';
+        }
+
+        // ── Event: touchstart di area mana aja ──
+        touchControls.addEventListener('touchstart', (e) => {
+            if (gameState !== 'PLAYING') return;
+            
+            const touch = e.changedTouches[0];
+            const touchX = touch.clientX;
+            const touchY = touch.clientY;
+            
+            // Kalau di area joystick + belum ada joystick aktif
+            if (isInJoystickArea(touchX, touchY) && !joystick.active) {
+                e.preventDefault();
+                joystick.pointerId = touch.identifier;
+                showJoystickAt(touchX, touchY);
+            }
         }, { passive: false });
 
-        joystickZone.addEventListener('touchmove', (e) => {
+        // ── Event: touchmove ──
+        touchControls.addEventListener('touchmove', (e) => {
             if (!joystick.active) return;
-            e.preventDefault();
-            e.stopPropagation();
             
-            // Cari touch dengan id yang sama
             let touch = null;
             for (const t of e.changedTouches) {
                 if (t.identifier === joystick.pointerId) {
@@ -454,58 +481,50 @@
                 }
             }
             if (!touch) return;
-
+            
+            e.preventDefault();
+            
             let dx = touch.clientX - joystick.startX;
             let dy = touch.clientY - joystick.startY;
             let dist = Math.hypot(dx, dy);
             const maxRadius = 50;
-
+            
             if (dist > maxRadius) {
                 dx = (dx / dist) * maxRadius;
                 dy = (dy / dist) * maxRadius;
                 dist = maxRadius;
             }
-
+            
             joystick.dx = dx / maxRadius;
             joystick.dy = dy / maxRadius;
             joystick.dist = dist;
-
+            
             joystickHandle.style.transform = `translate(${dx}px, ${dy}px)`;
         }, { passive: false });
 
-        const resetJoystick = (e) => {
-            if (e && e.changedTouches) {
-                // Cek kalau touch yang di-release itu yang kita track
-                let stillActive = false;
-                for (const t of e.changedTouches) {
-                    if (t.identifier === joystick.pointerId) {
-                        stillActive = true;
-                    }
+        // ── Event: touchend ──
+        const handleJoystickEnd = (e) => {
+            if (!joystick.active) return;
+            for (const t of e.changedTouches) {
+                if (t.identifier === joystick.pointerId) {
+                    hideJoystick();
+                    return;
                 }
-                if (!stillActive) return;
             }
-            
-            joystick.active = false;
-            joystick.pointerId = null;
-            joystick.dx = 0;
-            joystick.dy = 0;
-            joystickHandle.style.transform = `translate(0px, 0px)`;
         };
 
-        joystickZone.addEventListener('touchend', resetJoystick);
-        joystickZone.addEventListener('touchcancel', resetJoystick);
+        touchControls.addEventListener('touchend', handleJoystickEnd);
+        touchControls.addEventListener('touchcancel', handleJoystickEnd);
 
-        // ── Dash button (touch-friendly) ──
+        // ── Dash button ──
         btnDashTouch.addEventListener('touchstart', (e) => {
             e.preventDefault();
             e.stopPropagation();
             if (gameState === 'PLAYING') player.dash();
         }, { passive: false });
 
-        // Fallback untuk mouse (PC)
-        btnDashTouch.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (gameState === 'PLAYING') player.dash();
+        btnDashTouch.addEventListener('click', () => {
+            if (gameState === 'PLAYING' && !isTouchDevice) player.dash();
         });
 
         class Player {
@@ -1143,49 +1162,6 @@
 
         // Start Loop
         requestAnimationFrame(gameLoop);
-
-        // ── Auto-adjust joystick posisi di mobile ──
-        function adjustTouchControls() {
-            if (!isTouchDevice) return;
-            
-            const vh = window.innerHeight;
-            const vw = window.innerWidth;
-            const isSmall = vw < 500;
-            const isLandscape = vw > vh;
-            
-            const joystick = document.getElementById('joystick-zone');
-            const dashBtn = document.getElementById('btn-dash-touch');
-            
-            if (isLandscape) {
-                // Landscape: joystick lebih kecil, lebih tinggi
-                joystick.style.width = '120px';
-                joystick.style.height = '120px';
-                joystick.style.bottom = 'calc(1.5rem + env(safe-area-inset-bottom, 0px))';
-                
-                dashBtn.style.width = '70px';
-                dashBtn.style.height = '70px';
-                dashBtn.style.bottom = 'calc(2rem + env(safe-area-inset-bottom, 0px))';
-            } else if (isSmall) {
-                // Portrait kecil: joystick lebih besar, lebih tinggi
-                joystick.style.width = '140px';
-                joystick.style.height = '140px';
-                joystick.style.bottom = 'calc(3rem + env(safe-area-inset-bottom, 0px))';
-                
-                dashBtn.style.bottom = 'calc(4rem + env(safe-area-inset-bottom, 0px))';
-            }
-        }
-
-        window.addEventListener('resize', adjustTouchControls);
-        window.addEventListener('orientationchange', () => {
-            setTimeout(adjustTouchControls, 300);
-        });
-
-        // Panggil saat game start
-        const originalStartGame = startGame;
-        startGame = function() {
-            originalStartGame();
-            setTimeout(adjustTouchControls, 100);
-        };
     </script>
 </body>
 </html>
