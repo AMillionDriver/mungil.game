@@ -62,6 +62,78 @@
                 display: none !important;
             }
         }
+
+        /* ── Landscape mobile pendek: compact semua panel HUD ──
+           Game ini sebelumnya gak punya penyesuaian apapun buat landscape
+           pendek (cuma nyuruh rotate, abis itu UI-nya dibiarin ukuran
+           desktop) -- top bar, bottom bar, dan modal upgrade node semuanya
+           bisa kepotong/numpuk di viewport ~350-450px tinggi. Threshold
+           600px sama kayak yang dipakai neon_cyber_survivor.html, biar
+           konsisten nyakup HP dengan gesture-nav-bar juga. */
+        @media (orientation: landscape) and (max-height: 600px) {
+            #hud-top {
+                padding: 6px !important;
+            }
+            #hud-top .glass-panel {
+                padding: 4px 8px !important;
+                min-width: 0 !important;
+                gap: 6px !important;
+            }
+            #hud-top .w-8.h-8 {
+                width: 22px !important;
+                height: 22px !important;
+                font-size: 12px !important;
+            }
+            #hud-top .text-\[10px\] {
+                font-size: 8px !important;
+            }
+            #hud-top .text-xl {
+                font-size: 14px !important;
+            }
+            #hud-top .h-8.w-px {
+                height: 18px !important;
+            }
+            #btn-start-wave {
+                padding: 6px 10px !important;
+                font-size: 10px !important;
+            }
+            #btn-start-wave span {
+                white-space: nowrap;
+            }
+            #btn-speed, #btn-audio {
+                padding: 6px !important;
+            }
+
+            #hud-bottom {
+                bottom: 4px !important;
+            }
+            #hud-bottom .glass-panel {
+                padding: 4px !important;
+                gap: 6px !important;
+            }
+            #btn-ability-emp, #btn-ability-overclock, #btn-ability-repair {
+                min-width: 50px !important;
+                padding: 4px !important;
+            }
+            #btn-ability-emp .text-lg, #btn-ability-overclock .text-lg, #btn-ability-repair .text-lg {
+                font-size: 14px !important;
+            }
+            #btn-ability-emp .text-\[10px\], #btn-ability-overclock .text-\[10px\], #btn-ability-repair .text-\[10px\] {
+                font-size: 7px !important;
+            }
+            #btn-ability-emp .text-\[9px\], #btn-ability-overclock .text-\[9px\], #btn-ability-repair .text-\[9px\] {
+                font-size: 6px !important;
+            }
+
+            /* Modal upgrade node: sempit di landscape pendek, jangan sampe
+               nubruk hud-bottom yang udah dipangkas ke bottom:4px di atas. */
+            #node-modal {
+                bottom: 60px !important;
+                width: 260px !important;
+                max-height: calc(100vh - 90px) !important;
+                overflow-y: auto !important;
+            }
+        }
     </style>
 </head>
 <body class="relative w-screen h-screen overflow-hidden flex flex-col justify-between select-none">
@@ -191,7 +263,7 @@
     </div>
 
     <!-- Start Menu Overlay -->
-    <div id="menu-screen" class="absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+    <div id="menu-screen" class="absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
         <div class="glass-panel max-w-lg w-full rounded-2xl p-8 border border-cyan-500/50 text-center flex flex-col items-center gap-6 shadow-[0_0_50px_rgba(0,243,255,0.25)]">
             <div>
                 <h1 class="text-4xl md:text-5xl font-black font-orbitron tracking-wider neon-text-cyan text-cyan-400 mb-1">NEON MAINFRAME</h1>
@@ -216,7 +288,7 @@
     </div>
 
     <!-- Game Over Screen -->
-    <div id="gameover-screen" class="absolute inset-0 z-40 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 hidden">
+    <div id="gameover-screen" class="absolute inset-0 z-40 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 overflow-y-auto hidden">
         <div class="glass-panel max-w-md w-full rounded-2xl p-8 border border-red-500/50 text-center flex flex-col items-center gap-6">
             <div>
                 <h2 id="gameover-title" class="text-4xl font-extrabold font-orbitron text-red-500 neon-text-magenta mb-2">MAINFRAME BREACHED</h2>
