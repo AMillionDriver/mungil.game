@@ -225,6 +225,57 @@
                 bottom: 120px !important;
                 right: 20px !important;
             }
+
+            /* Top bar: health | 3 kotak (Kills/Rank/Waktu) | sound -- satu baris,
+               gak wrap, gak ada yang keluar viewport. Sebelumnya box-box ini
+               masih pakai min-width desktop (120px/80px/120px) yang jelas gak
+               muat di layar sempit, jadi kepotong/dorong keluar layar. */
+            #hud > div:first-child {
+                gap: 6px !important;
+                flex-wrap: nowrap !important;
+            }
+
+            /* Health & XP: kasih ruang secukupnya, jangan sampe kegencet nol
+               sama box-box di sampingnya (itu penyebab teks "HP SITEM" numpuk
+               vertikal aneh di screenshot). */
+            #hud .flex-1 {
+                min-width: 0 !important; /* biar flexbox boleh nyusut normal, teks di-elipsis bukan wrap acak */
+            }
+            #hud .flex-1 .text-xs {
+                font-size: 9px !important;
+            }
+            #hud .flex-1 span {
+                white-space: nowrap !important;
+            }
+
+            /* Kills/Rank/Waktu: kotak kecil senada sama treatment landscape,
+               dikelompokkan rapat di sebelah health indicator. */
+            #hud .glass-panel {
+                padding: 3px 6px !important;
+                border-radius: 8px !important;
+                min-width: 42px !important;
+            }
+            #hud .glass-panel > div:first-child {
+                font-size: 7px !important;
+                letter-spacing: 0 !important;
+            }
+            #hud .glass-panel > div:last-child {
+                font-size: 13px !important;
+                line-height: 1.1 !important;
+            }
+            #rank-badge {
+                min-width: 38px !important;
+            }
+
+            /* Sound: icon doang, gak makan tempat */
+            #btn-sound {
+                padding: 4px !important;
+                flex-shrink: 0 !important;
+            }
+            #btn-sound svg {
+                width: 16px !important;
+                height: 16px !important;
+            }
         }
     </style>
 </head>
