@@ -636,6 +636,29 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
+        // ── Robust resize handling ──
+        // Sebelumnya resizeCanvas() CUMA nempel ke event 'resize' polos dan
+        // dipanggil sekali pas load. Masalahnya: pas Chrome mobile address bar
+        // collapse gara-gara di-scroll (viewport beneran nambah tinggi), event
+        // 'resize' klasik itu KADANG gak ke-trigger buat transisi ini (perilaku
+        // umum/dikenal di banyak versi Chrome) -- grid jadi nyangkut kekalkulasi
+        // berdasarkan viewport awal yang lebih pendek (pas address bar masih
+        // kelihatan), gak pernah re-render pake ukuran yang beneran tersedia.
+        //
+        // Fix: (1) VisualViewport API -- API resmi yang DIDESAIN khusus nangkep
+        // perubahan viewport akibat address bar/keyboard, lebih reliable dari
+        // 'resize' klasik buat kasus ini. (2) Ikut re-trigger di orientationchange
+        // (sebelumnya cuma checkOrientation yang nempel di situ, resizeCanvas
+        // enggak). (3) Delayed re-check beberapa ratus ms setelah load, buat
+        // nangkep viewport yang baru 'settle' belakangan.
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resizeCanvas);
+        }
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 250);
+        });
+        setTimeout(resizeCanvas, 400); // catch-all: viewport yang settle telat setelah initial load
+
         class Enemy {
             constructor(type, healthMultiplier = 1) {
                 this.type = type;

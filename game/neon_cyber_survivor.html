@@ -882,6 +882,15 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
+        // VisualViewport API -- nangkep transisi address-bar collapse pas
+        // scroll (beda kasus dari orientationchange yang udah ditangani di
+        // bawah -- itu buat rotate device, ini buat address bar Chrome yang
+        // ilang/muncul tanpa device-nya diputer sama sekali). 'resize' klasik
+        // kadang gak ke-trigger buat transisi ini di sebagian versi Chrome.
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resizeCanvas);
+        }
+
         // ── Hitung area playable (hardcoded offset, lebih reliable) ──
         function getPlayArea() {
             // Offset hardcoded berdasarkan Tailwind class
