@@ -111,9 +111,24 @@
                 padding: 4px !important;
                 gap: 6px !important;
             }
+            /* Tombol tower (Pulsa/Frost/Plasma/dst) di-generate JS pakai class
+               generik (p-2, text-xl, min-w-[110px]) -- sebelumnya kelewat gak
+               ke-compact sama sekali, padahal ini yang paling makan tinggi di
+               baris hud-bottom (icon 20px + 2 baris teks + padding 16px). */
+            #tower-buttons-container button {
+                padding: 3px 6px !important;
+                min-width: 70px !important;
+                gap: 4px !important;
+            }
+            #tower-buttons-container button .text-xl {
+                font-size: 13px !important;
+            }
+            #tower-buttons-container button .text-\[10px\] {
+                font-size: 7px !important;
+            }
             #btn-ability-emp, #btn-ability-overclock, #btn-ability-repair {
-                min-width: 50px !important;
-                padding: 4px !important;
+                min-width: 42px !important;
+                padding: 3px !important;
             }
             #btn-ability-emp .text-lg, #btn-ability-overclock .text-lg, #btn-ability-repair .text-lg {
                 font-size: 14px !important;
@@ -613,7 +628,7 @@
 
             // Recalculate Grid size to fit canvas cleanly
             const maxGridW = canvas.width * 0.92;
-            const maxGridH = canvas.height * 0.72;
+            const maxGridH = canvas.height * 0.58; // dikecilin dari 0.72 -- sebelumnya grid makan kebanyakan tinggi, gak nyisain cukup ruang buat hud-bottom
 
             // cellW/cellH DIPISAH (gak dipaksa persegi) supaya grid ngisi
             // penuh lebar+tinggi layar yang tersedia -- di HP landscape yang
