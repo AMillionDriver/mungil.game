@@ -105,7 +105,8 @@
             }
 
             #hud-bottom {
-                bottom: 36px !important; /* naik 18px lagi dari 18px -- total 36px dari tepi bawah */
+                bottom: 55px !important; /* naik 19px lagi dari 36px -- total 55px dari tepi bawah */
+                transform: translateX(calc(-50% + 9px)) !important; /* geser 9px ke kanan dari posisi center */
             }
             #hud-bottom .glass-panel {
                 padding: 4px !important;
@@ -640,7 +641,7 @@
             cellH = Math.floor(maxGridH / gridRows);
             cellSize = Math.min(cellW, cellH);
             offsetX = Math.floor((canvas.width - gridCols * cellW) / 2);
-            offsetY = Math.floor((canvas.height - gridRows * cellH) / 2) - 18; // -18 lagi (total geser dari baseline: -20px lebih tinggi dari sebelumnya)
+            offsetY = Math.floor((canvas.height - gridRows * cellH) / 2) - 39; // -21px lagi (total -39 dari baseline awal)
 
             // Update pixel path based on calculated coordinates
             pixelPath = gridPath.map(pt => ({
