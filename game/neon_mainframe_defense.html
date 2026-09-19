@@ -1270,11 +1270,23 @@
             }
         });
 
-        canvas.addEventListener('click', () => {
-            if (gameState !== 'PLAYING' || !mouse.isHoveringGrid) return;
+        canvas.addEventListener('click', (e) => {
+            if (gameState !== 'PLAYING') return;
 
-            const gx = mouse.gridX;
-            const gy = mouse.gridY;
+            // Hitung posisi LANGSUNG dari event klik/tap ini, jangan nyandar ke
+            // mouse.gridX/gridY (di-update terpisah oleh mousemove). Di HP,
+            // sentuhan jari itu touchstart->touchend->click TANPA fase hover
+            // yang reliable kayak mouse di desktop -- mouse.gridX/gridY bisa
+            // nyangkut dari interaksi sebelumnya, bukan dari tap yang barusan.
+            // Ini penyebab tower ke-deploy di posisi yang gak sesuai tempat
+            // jari nyentuh layar.
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const gx = Math.floor((clickX - offsetX) / cellW);
+            const gy = Math.floor((clickY - offsetY) / cellH);
+
+            if (gx < 0 || gx >= gridCols || gy < 0 || gy >= gridRows) return;
 
             const existingNode = getTowerAt(gx, gy);
 
