@@ -330,6 +330,11 @@
             <div id="dash-indicator" class="text-xs font-bold text-cyan-400 font-orbitron opacity-80">DASH READY (SPACE / BUTTON)</div>
         </div>
 
+        <!-- Director Event Banner (L4D Horde / Breather Alert) -->
+        <div id="director-banner" class="hidden self-center px-4 py-1.5 rounded-full border border-pink-500/80 bg-pink-950/85 backdrop-blur-md text-center shadow-[0_0_25px_rgba(255,0,85,0.7)] animate-pulse transition-all duration-300 mb-2 pointer-events-none">
+            <span id="director-banner-text" class="text-xs md:text-sm font-bold font-orbitron tracking-widest text-pink-300">⚠️ CYBER SWARM SURGE ⚠️</span>
+        </div>
+
         <!-- CRITICAL MODE Warning -->
         <div id="critical-mode" class="hidden self-center flex flex-col items-center gap-2 mb-8 pointer-events-auto transition-all duration-300">
             <div class="text-[10px] uppercase tracking-widest text-red-500 font-bold animate-pulse">● CRITICAL MODE ACTIVE</div>
@@ -372,10 +377,11 @@
                 <div>🎮 <b>PC:</b> W, A, S, D / Panah (Jalan), Spasi (Dash), Mouse / P (Pause)</div>
                 <div>📱 <b>Mobile:</b> Analog virtual di layar & Tombol Dash</div>
                 
-                <div class="mt-2 font-bold text-white mb-1 font-orbitron">SYSTEM:</div>
-                <div>🎯 <b>Accuracy RANK:</b> S/A/B/C/D/E based on hit rate & streaks</div>
-                <div>🧠 <b>Tactical Enemies:</b> Flank smarter when you're skilled</div>
-                <div>⚡ <b>Random Bonus:</b> 3-7% chance for long-range hits</div>
+                <div class="mt-2 font-bold text-white mb-1 font-orbitron">SYSTEM & ADAPTIVE DIRECTOR:</div>
+                <div>🎯 <b>Accuracy RANK:</b> S/A/B/C/D/E berdasarkan akurasi tembakan</div>
+                <div>🌊 <b>L4D Pacing:</b> Gelombang Cyber Swarm diikuti fase hening (Breather)</div>
+                <div>💚 <b>RE4 Pity Drop:</b> Dapatkan Nano Repair Core saat HP sekarat</div>
+                <div>🧠 <b>Crowd Tactics:</b> Musuh mengepung taktis dengan kuota serang</div>
             </div>
 
             <button id="btn-start" class="w-full py-3.5 md:py-4 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-pink-500 text-white font-orbitron font-extrabold text-base md:text-lg tracking-wider hover:opacity-90 active:scale-95 transition shadow-[0_0_25px_rgba(0,243,255,0.6)]">
@@ -543,6 +549,52 @@
                     });
                 }, idx * 60);
             });
+        },
+
+        playHeal() {
+            if (this.muted || !this.ctx) return;
+            const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6 crystal cyber healing chord
+            notes.forEach((freq, idx) => {
+                setTimeout(() => {
+                    this._playSound({
+                        type: 'sine',
+                        freqStart: freq,
+                        freqEnd: freq * 1.05,
+                        gain: 0.08,
+                        duration: 0.16,
+                    });
+                }, idx * 45);
+            });
+        },
+
+        playHeartbeat() {
+            this._playSound({
+                type: 'sine',
+                freqStart: 75,
+                freqEnd: 42,
+                gain: 0.13,
+                duration: 0.18,
+            });
+        },
+
+        playHordeAlert() {
+            if (this.muted || !this.ctx) return;
+            this._playSound({
+                type: 'sawtooth',
+                freqStart: 280,
+                freqEnd: 600,
+                gain: 0.11,
+                duration: 0.28,
+            });
+            setTimeout(() => {
+                this._playSound({
+                    type: 'sawtooth',
+                    freqStart: 380,
+                    freqEnd: 750,
+                    gain: 0.11,
+                    duration: 0.32,
+                });
+            }, 180);
         },
 
         // ── Background Music (BGM) ──
@@ -882,7 +934,7 @@
         };
         
         // ═══════════════════════════════════════════════════════
-        // GAME DIRECTOR (Left 4 Dead style)
+        // GAME DIRECTOR (Left 4 Dead & RE4 / TLoU Adaptive Engine)
         // ═══════════════════════════════════════════════════════
         const GameDirector = {
             difficulty: 1.0,      // current overall difficulty multiplier
@@ -890,58 +942,222 @@
             chaosFactor: 0.0,     // dynamic factor based on player performance
             historyOffset: 0.0,   // penyesuaian dari histori sesi-sesi sebelumnya (PlayerTelemetry)
 
-            update() {
-                const accuracy = ShootingStats.getAccuracy();
-                const rank = ShootingStats.getRank();
-                
-                // Calculate chaos factor based on performance
-                // Good player = more challenge, struggling player = help
-                if (accuracy > 0.8) {
-                    this.chaosFactor = Math.min(0.5, this.chaosFactor + 0.02); // very skilled player
-                } else if (accuracy > 0.6) {
-                    this.chaosFactor = Math.min(0.3, this.chaosFactor + 0.01); // good player
-                } else if (accuracy < 0.3) {
-                    this.chaosFactor = Math.max(-0.2, this.chaosFactor - 0.03); // struggling player
-                } else {
-                    this.chaosFactor += (0.0 - this.chaosFactor) * 0.05; // normalize
-                }
-                
-                this.difficulty = this.baseDifficulty + this.chaosFactor + this.historyOffset;
-                this.baseDifficulty = 1.0 + (gameTime / 300); // slow base increase over time
-                
-                // Ensure difficulty stays within bounds
-                this.difficulty = Math.max(0.7, Math.min(2.0, this.difficulty));
+            // ── Left 4 Dead Pacing Loop (Peak & Valley) ──
+            // Siklus 4 Fase: BUILD_UP -> PEAK -> PEAK_FADE -> RELAX
+            phase: 'BUILD_UP',
+            phaseTimer: 0,
+            stress: 0,            // 0 - 100 Stress Meter
+            lastHeartbeatTime: 0,
+
+            // Durasi tiap fase (detik)
+            PHASE_DURATIONS: {
+                BUILD_UP: 20,     // Penumpukan tensi bertahap
+                PEAK: 10,         // Gelombang Horde / Cyber Swarm
+                PEAK_FADE: 5,     // Pembersihan sisa horde, spawn stop
+                RELAX: 8,         // Lembah hening / Breather: player kumpulin drop & reload posisi
             },
 
-            // Dipanggil sekali di startGame(), BUKAN tiap frame -- nyesuain titik
-            // mulai pace berdasarkan histori beberapa sesi terakhir (PlayerTelemetry),
-            // bukan cuma performa live sesi yang lagi jalan (itu udah kepegang
-            // chaosFactor/DDAController). Baru aktif kalau udah >=3 sesi tercatat,
-            // biar gak overfit ke satu sesi yang kebetulan aneh (mati konyol sekali
-            // langsung nge-generalisir "pemain ini lemah" itu gak adil).
+            // ── RE4 Attack Token System ──
+            // Membatasi jumlah musuh yang boleh menyerang sekaligus agar tidak terjadi death-blob
+            maxAttackTokens: 3,
+            currentAttackers: new Set(),
+
+            resetSession() {
+                this.difficulty = 1.0;
+                this.baseDifficulty = 1.0;
+                this.chaosFactor = 0.0;
+                this.historyOffset = 0.0;
+                this.phase = 'BUILD_UP';
+                this.phaseTimer = 0;
+                this.stress = 0;
+                this.lastHeartbeatTime = 0;
+                this.currentAttackers.clear();
+                this.hideBanner();
+            },
+
+            update(dt = 0.016) {
+                if (!player) return;
+
+                const accuracy = ShootingStats.getAccuracy();
+                const rank = ShootingStats.getRank();
+                const hpRatio = player.hp / player.maxHp;
+
+                // 1. Adaptive Chaos Factor
+                if (accuracy > 0.8) {
+                    this.chaosFactor = Math.min(0.5, this.chaosFactor + 0.02 * dt);
+                } else if (accuracy > 0.6) {
+                    this.chaosFactor = Math.min(0.3, this.chaosFactor + 0.01 * dt);
+                } else if (accuracy < 0.3 || hpRatio < 0.25) {
+                    this.chaosFactor = Math.max(-0.25, this.chaosFactor - 0.03 * dt);
+                } else {
+                    this.chaosFactor += (0.0 - this.chaosFactor) * 0.05 * dt;
+                }
+
+                this.baseDifficulty = 1.0 + (gameTime / 280);
+                this.difficulty = Math.max(0.65, Math.min(2.4, this.baseDifficulty + this.chaosFactor + this.historyOffset));
+
+                // Attack tokens adaptif sesuai DMC Rank (Rank S/A boleh dihadapi 4 attacker)
+                this.maxAttackTokens = (rank === 'S' || rank === 'A') ? 4 : 3;
+
+                // 2. Stress Meter Calculation (ala Left 4 Dead)
+                let nearbyEnemyCount = 0;
+                for (let i = 0; i < enemies.length; i++) {
+                    const e = enemies[i];
+                    if (Math.hypot(e.x - player.x, e.y - player.y) < 160) {
+                        nearbyEnemyCount++;
+                    }
+                }
+                const stressDelta = (nearbyEnemyCount * 3.5 + (1 - hpRatio) * 15) * dt;
+                this.stress = Math.min(100, Math.max(0, this.stress + stressDelta - (dt * 8)));
+
+                // 3. Pacing Loop State Machine (ala L4D)
+                this.phaseTimer += dt;
+                this.managePacingPhase(hpRatio);
+
+                // 4. The Last of Us Low HP Heartbeat Tension Cue
+                if (hpRatio < 0.28 && gameState === 'PLAYING') {
+                    const now = performance.now();
+                    const heartbeatInterval = 750 + hpRatio * 400; // makin sekarat, detak makin cepat
+                    if (now - this.lastHeartbeatTime > heartbeatInterval) {
+                        SoundEngine.playHeartbeat();
+                        triggerHaptic(20);
+                        this.lastHeartbeatTime = now;
+                    }
+                }
+
+                // Bersihkan musuh yang sudah mati dari token set
+                for (const enemy of this.currentAttackers) {
+                    if (enemy.markedForDeletion || enemy.hp <= 0) {
+                        this.currentAttackers.delete(enemy);
+                    }
+                }
+            },
+
+            managePacingPhase(hpRatio) {
+                // Panic Reliever (L4D Emergency Relax):
+                // Jika player lagi di fase PEAK tapi sekarat parah (HP < 20% & stress tinggi),
+                // potong fase PEAK lebih cepat untuk memberi nafas (Mercy rule ala RE4/L4D)
+                if (this.phase === 'PEAK' && hpRatio < 0.20 && this.stress > 80 && this.phaseTimer > 4) {
+                    this.transitionToPhase('PEAK_FADE');
+                    return;
+                }
+
+                const currentDuration = this.PHASE_DURATIONS[this.phase] || 15;
+                if (this.phaseTimer >= currentDuration) {
+                    if (this.phase === 'BUILD_UP') {
+                        this.transitionToPhase('PEAK');
+                    } else if (this.phase === 'PEAK') {
+                        this.transitionToPhase('PEAK_FADE');
+                    } else if (this.phase === 'PEAK_FADE') {
+                        this.transitionToPhase('RELAX');
+                    } else if (this.phase === 'RELAX') {
+                        this.transitionToPhase('BUILD_UP');
+                    }
+                }
+            },
+
+            transitionToPhase(nextPhase) {
+                this.phase = nextPhase;
+                this.phaseTimer = 0;
+
+                const banner = document.getElementById('director-banner');
+                const bannerText = document.getElementById('director-banner-text');
+
+                if (nextPhase === 'PEAK') {
+                    // Masuk Gelombang Horde Masif!
+                    SoundEngine.playHordeAlert();
+                    triggerHaptic([50, 100, 50]);
+                    if (banner && bannerText) {
+                        banner.className = "self-center px-4 py-1.5 rounded-full border border-pink-500/80 bg-pink-950/85 backdrop-blur-md text-center shadow-[0_0_25px_rgba(255,0,85,0.7)] animate-pulse transition-all duration-300 mb-2 pointer-events-none";
+                        bannerText.className = "text-xs md:text-sm font-bold font-orbitron tracking-widest text-pink-300";
+                        bannerText.innerText = "⚠️ CYBER SWARM SURGE ⚠️";
+                        banner.classList.remove('hidden');
+                    }
+                } else if (nextPhase === 'RELAX') {
+                    // Masuk Fase Bernapas (Valley State ala L4D)
+                    this.stress = Math.max(0, this.stress - 40);
+                    if (banner && bannerText) {
+                        banner.className = "self-center px-4 py-1.5 rounded-full border border-emerald-500/60 bg-emerald-950/80 backdrop-blur-md text-center shadow-[0_0_20px_rgba(0,255,136,0.4)] transition-all duration-300 mb-2 pointer-events-none";
+                        bannerText.className = "text-xs md:text-sm font-bold font-orbitron tracking-widest text-emerald-300";
+                        bannerText.innerText = "🛡️ SEKTOR AMAN // BREATHER";
+                        banner.classList.remove('hidden');
+                        setTimeout(() => this.hideBanner(), 3500);
+                    }
+                } else {
+                    this.hideBanner();
+                }
+            },
+
+            hideBanner() {
+                const banner = document.getElementById('director-banner');
+                if (banner) banner.classList.add('hidden');
+            },
+
+            // RE4 Attack Token: Minta izin menyerang langsung
+            requestAttackToken(enemy) {
+                if (this.currentAttackers.has(enemy)) return true;
+                if (this.currentAttackers.size < this.maxAttackTokens) {
+                    this.currentAttackers.add(enemy);
+                    return true;
+                }
+                return false;
+            },
+
+            releaseAttackToken(enemy) {
+                this.currentAttackers.delete(enemy);
+            },
+
+            // RE4 & The Last of Us Dynamic Pity Drops
+            checkEnemyDrop(x, y) {
+                if (!player) return;
+                const activeCores = healthCores.filter(c => !c.markedForDeletion).length;
+                if (activeCores >= 2) return; // Batasi max 2 health pack di arena
+
+                const hpRatio = player.hp / player.maxHp;
+                let dropChance = 0.03; // Sangat langka saat HP sehat
+
+                if (hpRatio < 0.28) {
+                    // Pemain kritis / sekarat -> Pity Drop tinggi ala RE4 Green Herb!
+                    dropChance = 0.45;
+                } else if (hpRatio < 0.55) {
+                    // Pemain terluka sedang
+                    dropChance = 0.18;
+                }
+
+                if (Math.random() < dropChance) {
+                    healthCores.push(new HealthCore(x, y, Math.round(player.maxHp * 0.25)));
+                }
+            },
+
+            // Multiplier spawn rate dikontrol oleh fase L4D
+            getSpawnRateMultiplier() {
+                if (this.phase === 'PEAK') return this.difficulty * 2.2;
+                if (this.phase === 'PEAK_FADE') return 0;
+                if (this.phase === 'RELAX') return 0;
+                return this.difficulty * 1.0;
+            },
+
+            getMultiplier() {
+                return this.difficulty;
+            },
+
             applyHistoryOffset() {
                 this.historyOffset = 0.0;
                 const stats = PlayerTelemetry.getAggregateStats();
                 if (!stats || stats.sessionsPlayed < 3) return;
 
                 if (stats.avgSurvivalTime < 60) {
-                    this.historyOffset = -0.15; // sering mati cepat -> mulai lebih santai
+                    this.historyOffset = -0.15;
                 } else if (stats.avgSurvivalTime > 180) {
-                    this.historyOffset = 0.15;  // konsisten bertahan lama -> mulai lebih menantang
+                    this.historyOffset = 0.15;
                 }
             },
-            
-            getMultiplier() {
-                return this.difficulty;
-            },
-            
-            // Should bullet from long distance hit? (random 3-7% chance to prevent predictable misses)
+
             shouldHitLongDistance(distance) {
-                if (distance > 400) { // only for long range shots
-                    // 3-7% random chance (unpredictable)
+                if (distance > 400) {
                     return Math.random() < (0.03 + Math.random() * 0.04);
                 }
-                return true; // close range always has chance to hit
+                return true;
             }
         };
 
@@ -1478,25 +1694,42 @@
             }
 
             update() {
+                const hasAttackToken = (this.type === 'boss') || GameDirector.requestAttackToken(this);
+
                 if (this.type === 'tactical') {
                     // Tactical AI: flank the player from the side
-                    const dist = Math.hypot(player.x - this.x, player.y - this.y);
-                    const targetX = player.x + this.flankDirection * 80; // target position to side
+                    const targetX = player.x + this.flankDirection * 85;
                     const targetY = player.y;
                     
-                    // Change flank direction periodically
-                    if (Math.random() < 0.005) {
+                    if (Math.random() < 0.006) {
                         this.flankDirection *= -1;
                     }
                     
                     const angle = Math.atan2(targetY - this.y, targetX - this.x);
                     this.x += Math.cos(angle) * this.speed;
                     this.y += Math.sin(angle) * this.speed;
-                } else {
-                    // Standard AI: direct chase
+                } else if (hasAttackToken) {
+                    // RE4 Aggressive Attacker: Direct chase towards player
                     const angle = Math.atan2(player.y - this.y, player.x - this.x);
                     this.x += Math.cos(angle) * this.speed;
                     this.y += Math.sin(angle) * this.speed;
+                } else {
+                    // RE4 Crowd Prowling / Flanking: Circle menacingly around player instead of clumping
+                    const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
+                    const idealOrbit = 150;
+                    const baseAngle = Math.atan2(player.y - this.y, player.x - this.x);
+
+                    let moveAngle = baseAngle;
+                    if (distToPlayer < idealOrbit - 25) {
+                        moveAngle = baseAngle + Math.PI; // mundur sedikit jika terlalu dekat
+                    } else if (distToPlayer > idealOrbit + 50) {
+                        moveAngle = baseAngle; // dekati lingkaran orbit
+                    } else {
+                        moveAngle = baseAngle + (Math.PI / 2); // rotasi orbit melingkar
+                    }
+
+                    this.x += Math.cos(moveAngle) * (this.speed * 0.75);
+                    this.y += Math.sin(moveAngle) * (this.speed * 0.75);
                 }
 
                 // Player collision damage
@@ -1519,9 +1752,12 @@
                 createParticles(this.x, this.y, this.color, 3);
                 if (this.hp <= 0) {
                     this.markedForDeletion = true;
+                    GameDirector.releaseAttackToken(this);
                     killCount++;
                     DDAController.recordKill();
                     gems.push(new Gem(this.x, this.y, this.xpValue));
+                    // RE4 & The Last of Us Dynamic Pity Health Drops
+                    GameDirector.checkEnemyDrop(this.x, this.y);
                     createParticles(this.x, this.y, this.color, 12);
                     SoundEngine.playExplosion();
                 }
@@ -1623,10 +1859,109 @@
             }
         }
 
+        // ── RE4 / The Last of Us Pity Health Drop (Nano Repair Core) ──
+        class HealthCore {
+            constructor(x, y, healAmount = 25) {
+                this.x = x;
+                this.y = y;
+                this.healAmount = healAmount;
+                this.radius = 8;
+                this.pulseTime = 0;
+                this.markedForDeletion = false;
+            }
+
+            update(dt = 0.016) {
+                this.pulseTime += dt;
+                const d = Math.hypot(player.x - this.x, player.y - this.y);
+                const magnetRadius = 160;
+
+                if (d < magnetRadius) {
+                    const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    const pullSpeed = 8 * (1 - d / magnetRadius);
+                    this.x += Math.cos(angle) * pullSpeed;
+                    this.y += Math.sin(angle) * pullSpeed;
+                }
+
+                if (d < player.radius + this.radius) {
+                    const actualHeal = Math.min(player.maxHp - player.hp, this.healAmount);
+                    player.hp = Math.min(player.maxHp, player.hp + this.healAmount);
+                    SoundEngine.playHeal();
+                    triggerHaptic([40, 60]);
+                    createParticles(this.x, this.y, '#00ff88', 16);
+                    floatingTexts.push(new FloatingText(player.x, player.y - 20, `+${Math.round(actualHeal || this.healAmount)} HP`, '#00ff88'));
+                    this.markedForDeletion = true;
+                }
+            }
+
+            draw() {
+                const pulse = Math.sin(this.pulseTime * 6) * 2;
+                ctx.save();
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00ff88';
+
+                // Outer pulsating emerald glow
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius + pulse, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 255, 136, 0.35)';
+                ctx.fill();
+
+                // Core crystal
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#00ff88';
+                ctx.fill();
+
+                // Holographic Cross / Nano Icon (+)
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(this.x - 1.5, this.y - 5, 3, 10);
+                ctx.fillRect(this.x - 5, this.y - 1.5, 10, 3);
+
+                ctx.restore();
+            }
+        }
+
+        // ── Floating Combat Text (Damage / Healing Popups) ──
+        class FloatingText {
+            constructor(x, y, text, color = '#00ff88') {
+                this.x = x;
+                this.y = y;
+                this.text = text;
+                this.color = color;
+                this.alpha = 1.0;
+                this.vy = -1.2;
+                this.life = 0;
+                this.maxLife = 0.9;
+                this.markedForDeletion = false;
+            }
+
+            update(dt = 0.016) {
+                this.life += dt;
+                this.y += this.vy;
+                this.alpha = Math.max(0, 1 - (this.life / this.maxLife));
+                if (this.life >= this.maxLife) {
+                    this.markedForDeletion = true;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.font = 'bold 12px Orbitron, sans-serif';
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 8;
+                ctx.textAlign = 'center';
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
         const player = new Player();
         let bullets = [];
         let enemies = [];
         let gems = [];
+        let healthCores = [];
+        let floatingTexts = [];
         let particles = [];
 
         function createParticles(x, y, color, count = 8) {
@@ -1640,8 +1975,12 @@
         let bossSpawned = false;
 
         function spawnManager(now) {
-            const baseSpawnRate = Math.max(400, 1900 - gameTime * 15);
-            const spawnRate = baseSpawnRate / GameDirector.getMultiplier();
+            const spawnMult = GameDirector.getSpawnRateMultiplier();
+            // Jika fase PEAK_FADE atau RELAX (L4D Breather), hentikan spawn reguler
+            if (spawnMult <= 0) return;
+
+            const baseSpawnRate = Math.max(320, 1800 - gameTime * 15);
+            const spawnRate = baseSpawnRate / spawnMult;
 
             if (now - lastSpawn > spawnRate) {
                 const rand = Math.random();
@@ -1650,12 +1989,20 @@
                 const playerRank = ShootingStats.getRank();
                 const isSkilledPlayer = playerRank === 'S' || playerRank === 'A';
                 
-                // Skilled players get tactical enemies that adapt their behavior
-                if (isSkilledPlayer && rand < 0.35) {
-                    // Tactical enemies (new type - smarter, adapt to player position)
+                // Pada fase PEAK (Horde Surge ala L4D), gelombang jauh lebih bervariasi & intens
+                if (GameDirector.phase === 'PEAK') {
+                    if (rand < 0.40) {
+                        enemies.push(new Enemy('fast'));
+                    } else if (rand < 0.70) {
+                        enemies.push(new Enemy('tactical'));
+                    } else {
+                        enemies.push(new Enemy('drone'));
+                    }
+                } else if (isSkilledPlayer && rand < 0.35) {
+                    // Tactical enemies (smarter, adapt to player position)
                     enemies.push(new Enemy('tactical'));
                 } else if (rand < 0.30 + GameDirector.chaosFactor) {
-                    // More fast enemies when GameDirector detects chaos
+                    // More fast enemies when GameDirector detects high performance
                     enemies.push(new Enemy('fast'));
                 } else {
                     enemies.push(new Enemy('drone'));
@@ -1663,8 +2010,8 @@
                 lastSpawn = now;
             }
 
-            // Spawn Boss every 60 seconds
-            if (Math.floor(gameTime) > 0 && Math.floor(gameTime) % 60 === 0 && !bossSpawned) {
+            // Spawn Boss setiap 60 detik (hanya jika bukan fase RELAX)
+            if (Math.floor(gameTime) > 0 && Math.floor(gameTime) % 60 === 0 && !bossSpawned && GameDirector.phase !== 'RELAX') {
                 enemies.push(new Enemy('boss'));
                 bossSpawned = true;
             } else if (Math.floor(gameTime) % 60 !== 0) {
@@ -1769,12 +2116,14 @@
 
                 // DDA update and UI feedback (integrated with GameDirector)
                 DDAController.update(dt);
-                GameDirector.update();
+                GameDirector.update(dt);
 
                 // Bullet updates & collision
                 bullets.forEach(b => b.update());
                 enemies.forEach(e => e.update());
                 gems.forEach(g => g.update());
+                healthCores.forEach(h => h.update(dt));
+                floatingTexts.forEach(f => f.update(dt));
                 particles.forEach(p => p.update());
 
                 // Bullet vs Enemy Collision
@@ -1809,6 +2158,8 @@
                 bullets = bullets.filter(b => !b.markedForDeletion);
                 enemies = enemies.filter(e => !e.markedForDeletion);
                 gems = gems.filter(g => !g.markedForDeletion);
+                healthCores = healthCores.filter(h => !h.markedForDeletion);
+                floatingTexts = floatingTexts.filter(f => !f.markedForDeletion);
                 particles = particles.filter(p => !p.markedForDeletion);
 
                 // Check Game Over
@@ -1823,13 +2174,33 @@
             // Draw Layer (Tetap gambar saat PAUSED agar latar terlihat)
             if (gameState === 'PLAYING' || gameState === 'UPGRADE' || gameState === 'PAUSED') {
                 gems.forEach(g => g.draw());
+                healthCores.forEach(h => h.draw());
                 particles.forEach(p => p.draw());
                 bullets.forEach(b => b.draw());
                 enemies.forEach(e => e.draw());
                 player.draw();
+                floatingTexts.forEach(f => f.draw());
             }
 
             ctx.restore();
+
+            // ── The Last of Us Low HP Tension Vignette ──
+            if (player && player.hp < player.maxHp * 0.30 && (gameState === 'PLAYING' || gameState === 'PAUSED')) {
+                const hpRatio = Math.max(0, player.hp / (player.maxHp * 0.30));
+                const intensity = (1 - hpRatio) * 0.55;
+                const pulse = 0.75 + 0.25 * Math.sin(Date.now() * 0.007);
+                const finalAlpha = Math.min(0.65, intensity * pulse);
+
+                const grad = ctx.createRadialGradient(
+                    canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.25,
+                    canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.65
+                );
+                grad.addColorStop(0, 'rgba(255, 0, 40, 0)');
+                grad.addColorStop(1, `rgba(220, 0, 50, ${finalAlpha})`);
+
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
 
             animationFrameId = requestAnimationFrame(gameLoop);
         }
@@ -1894,6 +2265,8 @@
             bullets = [];
             enemies = [];
             gems = [];
+            healthCores = [];
+            floatingTexts = [];
             particles = [];
             gameTime = 0;
             killCount = 0;
@@ -1913,7 +2286,8 @@
             DDAController.lastPlayerX = player.x;
             DDAController.lastPlayerY = player.y;
 
-            // Nyesuain titik mulai pace berdasarkan histori sesi-sesi sebelumnya
+            // Reset GameDirector session & L4D Pacing Engine
+            GameDirector.resetSession();
             GameDirector.baseDifficulty = 1.0;
             GameDirector.chaosFactor = 0.0;
             GameDirector.applyHistoryOffset();
@@ -1934,6 +2308,7 @@
         function triggerGameOver() {
             gameState = 'GAMEOVER';
             SoundEngine.pauseBgm();
+            GameDirector.hideBanner();
             document.getElementById('hud').classList.add('hidden');
             document.getElementById('touch-controls').classList.add('hidden');
 
