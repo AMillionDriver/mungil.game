@@ -2,11 +2,17 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Mainframe Defense</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --sat: env(safe-area-inset-top, 0px);
+            --sab: env(safe-area-inset-bottom, 0px);
+            --sal: env(safe-area-inset-left, 0px);
+            --sar: env(safe-area-inset-right, 0px);
+        }
         * {
             user-select: none;
             -webkit-user-select: none;
@@ -50,6 +56,19 @@
             border-radius: 4px;
         }
 
+        /* ── Top & Bottom HUD Safe Areas ── */
+        #hud-top {
+            padding-top: max(6px, var(--sat));
+            padding-left: max(10px, var(--sal));
+            padding-right: max(10px, var(--sar));
+        }
+        #hud-bottom {
+            padding-bottom: max(6px, var(--sab));
+            padding-left: max(10px, var(--sal));
+            padding-right: max(10px, var(--sar));
+            bottom: max(6px, var(--sab));
+        }
+
         /* ── Rotate prompt for mobile portrait ── */
         @media (max-width: 768px) and (orientation: portrait) {
             #rotate-prompt:not([hidden]) {
@@ -63,76 +82,74 @@
             }
         }
 
-        /* ── Landscape mobile pendek: compact semua panel HUD ──
-           Game ini sebelumnya gak punya penyesuaian apapun buat landscape
-           pendek (cuma nyuruh rotate, abis itu UI-nya dibiarin ukuran
-           desktop) -- top bar, bottom bar, dan modal upgrade node semuanya
-           bisa kepotong/numpuk di viewport ~350-450px tinggi. Threshold
-           600px sama kayak yang dipakai neon_cyber_survivor.html, biar
-           konsisten nyakup HP dengan gesture-nav-bar juga. */
+        /* ── Landscape mobile pendek: compact semua panel HUD ── */
         @media (orientation: landscape) and (max-height: 600px) {
             #hud-top {
-                padding: 6px !important;
+                padding-top: max(4px, var(--sat)) !important;
+                padding-bottom: 2px !important;
+                padding-left: max(6px, var(--sal)) !important;
+                padding-right: max(6px, var(--sar)) !important;
             }
             #hud-top .glass-panel {
-                padding: 4px 8px !important;
+                padding: 3px 6px !important;
                 min-width: 0 !important;
-                gap: 6px !important;
+                gap: 4px !important;
             }
             #hud-top .w-8.h-8 {
-                width: 22px !important;
-                height: 22px !important;
-                font-size: 12px !important;
+                width: 20px !important;
+                height: 20px !important;
+                font-size: 11px !important;
             }
             #hud-top .text-\[10px\] {
                 font-size: 8px !important;
             }
             #hud-top .text-xl {
-                font-size: 14px !important;
+                font-size: 13px !important;
             }
             #hud-top .h-8.w-px {
-                height: 18px !important;
+                height: 16px !important;
             }
             #btn-start-wave {
-                padding: 6px 10px !important;
-                font-size: 10px !important;
+                padding: 4px 8px !important;
+                font-size: 9px !important;
             }
             #btn-start-wave span {
                 white-space: nowrap;
             }
-            #btn-speed, #btn-audio {
-                padding: 6px !important;
+            #btn-speed, #btn-audio, #btn-pause {
+                padding: 4px 6px !important;
+                font-size: 11px !important;
             }
 
             #hud-bottom {
-                bottom: 55px !important; /* naik 19px lagi dari 36px -- total 55px dari tepi bawah */
-                transform: translateX(calc(-50% + 9px)) !important; /* geser 9px ke kanan dari posisi center */
+                bottom: max(4px, var(--sab)) !important;
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+                width: calc(100% - max(16px, calc(var(--sal) + var(--sar)))) !important;
+                max-width: 900px !important;
+                padding: 0 !important;
             }
             #hud-bottom .glass-panel {
-                padding: 4px !important;
-                gap: 6px !important;
-            }
-            /* Tombol tower (Pulsa/Frost/Plasma/dst) di-generate JS pakai class
-               generik (p-2, text-xl, min-w-[110px]) -- sebelumnya kelewat gak
-               ke-compact sama sekali, padahal ini yang paling makan tinggi di
-               baris hud-bottom (icon 20px + 2 baris teks + padding 16px). */
-            #tower-buttons-container button {
                 padding: 3px 6px !important;
-                min-width: 70px !important;
                 gap: 4px !important;
             }
-            #tower-buttons-container button .text-xl {
-                font-size: 13px !important;
+            #tower-buttons-container button {
+                padding: 3px 5px !important;
+                min-width: 62px !important;
+                gap: 3px !important;
             }
-            #tower-buttons-container button .text-\[10px\] {
-                font-size: 7px !important;
+            #tower-buttons-container button .text-xl {
+                font-size: 12px !important;
+            }
+            #tower-buttons-container button .text-[10px] {
+                font-size: 7.5px !important;
             }
             #btn-ability-emp, #btn-ability-overclock, #btn-ability-repair {
-                min-width: 42px !important;
-                padding: 3px !important;
+                min-width: 44px !important;
+                padding: 3px 4px !important;
             }
             #btn-ability-emp .text-lg, #btn-ability-overclock .text-lg, #btn-ability-repair .text-lg {
-                font-size: 14px !important;
+                font-size: 13px !important;
             }
             #btn-ability-emp .text-\[10px\], #btn-ability-overclock .text-\[10px\], #btn-ability-repair .text-\[10px\] {
                 font-size: 7px !important;
@@ -141,13 +158,33 @@
                 font-size: 6px !important;
             }
 
-            /* Modal upgrade node: sempit di landscape pendek, jangan sampe
-               nubruk hud-bottom yang udah dipangkas ke bottom:4px di atas. */
+            /* Dock modal to the right on landscape so it doesn't block the center grid */
             #node-modal {
-                bottom: 60px !important;
-                width: 260px !important;
-                max-height: calc(100vh - 90px) !important;
+                top: max(42px, calc(var(--sat) + 38px)) !important;
+                right: max(10px, var(--sar)) !important;
+                left: auto !important;
+                bottom: auto !important;
+                transform: none !important;
+                width: 220px !important;
+                max-height: calc(100vh - 60px) !important;
+                padding: 8px !important;
                 overflow-y: auto !important;
+            }
+            #node-modal h4 {
+                font-size: 11px !important;
+            }
+            #node-modal p {
+                font-size: 10px !important;
+                margin-bottom: 4px !important;
+            }
+            #node-modal .grid {
+                font-size: 9px !important;
+                padding: 4px !important;
+                margin-bottom: 6px !important;
+            }
+            #node-modal button {
+                padding: 4px 6px !important;
+                font-size: 9px !important;
             }
         }
     </style>
@@ -199,14 +236,17 @@
             </div>
 
             <!-- Wave Control Buttons -->
-            <div class="flex items-center gap-2 pointer-events-auto">
-                <button id="btn-start-wave" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-125 text-white font-orbitron font-bold text-xs tracking-wider transition shadow-[0_0_15px_rgba(0,243,255,0.4)] flex items-center gap-1.5 active:scale-95">
+            <div class="flex items-center gap-1.5 md:gap-2 pointer-events-auto">
+                <button id="btn-start-wave" class="px-3 md:px-4 py-2 md:py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-125 text-white font-orbitron font-bold text-xs tracking-wider transition shadow-[0_0_15px_rgba(0,243,255,0.4)] flex items-center gap-1.5 active:scale-95">
                     <span>⚡ SERANGAN BARU</span>
                 </button>
-                <button id="btn-speed" class="p-2.5 rounded-xl glass-panel text-cyan-400 hover:text-white font-orbitron font-bold text-xs border border-cyan-500/40">
+                <button id="btn-speed" class="p-2 md:p-2.5 rounded-xl glass-panel text-cyan-400 hover:text-white font-orbitron font-bold text-xs border border-cyan-500/40" title="Kecepatan Game">
                     1x
                 </button>
-                <button id="btn-audio" class="p-2.5 rounded-xl glass-panel text-cyan-400 hover:text-white border border-cyan-500/40">
+                <button id="btn-pause" class="p-2 md:p-2.5 rounded-xl glass-panel text-cyan-400 hover:text-white border border-cyan-500/40" title="Jeda Game">
+                    ⏸️
+                </button>
+                <button id="btn-audio" class="p-2 md:p-2.5 rounded-xl glass-panel text-cyan-400 hover:text-white border border-cyan-500/40" title="Suara On/Off">
                     🔊
                 </button>
             </div>
@@ -219,31 +259,31 @@
 
     <!-- Bottom Tower Selector & Abilities Bar -->
     <div id="hud-bottom" class="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-full max-w-5xl px-3 pointer-events-none hidden">
-        <div class="glass-panel p-2 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 pointer-events-auto">
+        <div class="glass-panel p-2 rounded-2xl flex flex-row items-center justify-between gap-2 pointer-events-auto">
             
             <!-- Towers Selector -->
-            <div class="flex items-center gap-2 overflow-x-auto max-w-full pb-1 md:pb-0" id="tower-buttons-container">
+            <div class="flex items-center gap-2 overflow-x-auto max-w-[62%] sm:max-w-[70%] pb-0.5" id="tower-buttons-container">
                 <!-- Tower buttons generated dynamically -->
             </div>
 
-            <div class="hidden md:block h-10 w-px bg-cyan-500/30"></div>
+            <div class="h-8 w-px bg-cyan-500/30 flex-shrink-0"></div>
 
             <!-- Special Cyber Abilities -->
-            <div class="flex items-center gap-2">
-                <button id="btn-ability-emp" class="group relative p-2.5 rounded-xl bg-purple-950/60 border border-purple-500/50 hover:bg-purple-900/80 transition text-center min-w-[75px] active:scale-95 disabled:opacity-40">
-                    <div class="text-lg">💥</div>
-                    <div class="text-[10px] font-orbitron text-purple-300 font-bold">EMP PULSE</div>
-                    <div class="text-[9px] text-gray-400 font-orbitron">100 💎</div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button id="btn-ability-emp" class="group relative p-2 rounded-xl bg-purple-950/60 border border-purple-500/50 hover:bg-purple-900/80 transition text-center min-w-[58px] sm:min-w-[70px] active:scale-95 disabled:opacity-40">
+                    <div class="text-base sm:text-lg">💥</div>
+                    <div class="text-[9px] sm:text-[10px] font-orbitron text-purple-300 font-bold">EMP</div>
+                    <div class="text-[8px] sm:text-[9px] text-gray-400 font-orbitron">100 💎</div>
                 </button>
-                <button id="btn-ability-overclock" class="group relative p-2.5 rounded-xl bg-amber-950/60 border border-amber-500/50 hover:bg-amber-900/80 transition text-center min-w-[75px] active:scale-95 disabled:opacity-40">
-                    <div class="text-lg">⚡</div>
-                    <div class="text-[10px] font-orbitron text-amber-300 font-bold">OVERCLOCK</div>
-                    <div class="text-[9px] text-gray-400 font-orbitron">150 💎</div>
+                <button id="btn-ability-overclock" class="group relative p-2 rounded-xl bg-amber-950/60 border border-amber-500/50 hover:bg-amber-900/80 transition text-center min-w-[58px] sm:min-w-[70px] active:scale-95 disabled:opacity-40">
+                    <div class="text-base sm:text-lg">⚡</div>
+                    <div class="text-[9px] sm:text-[10px] font-orbitron text-amber-300 font-bold">OVERCLOCK</div>
+                    <div class="text-[8px] sm:text-[9px] text-gray-400 font-orbitron">150 💎</div>
                 </button>
-                <button id="btn-ability-repair" class="group relative p-2.5 rounded-xl bg-pink-950/60 border border-pink-500/50 hover:bg-pink-900/80 transition text-center min-w-[75px] active:scale-95 disabled:opacity-40">
-                    <div class="text-lg">🔧</div>
-                    <div class="text-[10px] font-orbitron text-pink-300 font-bold">REPAIR</div>
-                    <div class="text-[9px] text-gray-400 font-orbitron">120 💎</div>
+                <button id="btn-ability-repair" class="group relative p-2 rounded-xl bg-pink-950/60 border border-pink-500/50 hover:bg-pink-900/80 transition text-center min-w-[58px] sm:min-w-[70px] active:scale-95 disabled:opacity-40">
+                    <div class="text-base sm:text-lg">🔧</div>
+                    <div class="text-[9px] sm:text-[10px] font-orbitron text-pink-300 font-bold">REPAIR</div>
+                    <div class="text-[8px] sm:text-[9px] text-gray-400 font-orbitron">120 💎</div>
                 </button>
             </div>
 
@@ -295,6 +335,24 @@
             <button id="btn-recycle-node" class="py-2 px-3 rounded-xl bg-red-950 border border-red-500/50 text-red-400 font-orbitron font-bold text-xs hover:bg-red-900 transition">
                 RECYCLE
             </button>
+        </div>
+    </div>
+
+    <!-- Pause Overlay Modal -->
+    <div id="pause-screen" class="absolute inset-0 z-40 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-sm w-full rounded-2xl p-6 border border-cyan-500/50 text-center flex flex-col items-center gap-5 shadow-[0_0_40px_rgba(0,243,255,0.3)]">
+            <div>
+                <h2 class="text-3xl font-black font-orbitron text-cyan-400 neon-text-cyan mb-1">GAME PAUSED</h2>
+                <p class="text-gray-300 text-xs font-orbitron">Pertahanan dihentikan sementara. Atur strategi sebelum melanjutkan!</p>
+            </div>
+            <div class="flex flex-col gap-2.5 w-full">
+                <button id="btn-resume-game" class="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-orbitron font-bold text-xs tracking-wider hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,243,255,0.4)]">
+                    ▶️ LANJUTKAN PERTAHANAN
+                </button>
+                <button id="btn-restart-from-pause" class="w-full py-2.5 rounded-xl bg-red-950/70 border border-red-500/40 text-red-300 font-orbitron font-bold text-xs hover:bg-red-900 active:scale-95 transition">
+                    🔄 REBOOT SISTEM (RESTART)
+                </button>
+            </div>
         </div>
     </div>
 
@@ -679,25 +737,32 @@
         // Mouse & Hover state
         const mouse = { x: -100, y: -100, gridX: -1, gridY: -1, isHoveringGrid: false };
 
+        let isPaused = false;
+
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
 
-            // Recalculate Grid size to fit canvas cleanly
-            const maxGridW = canvas.width * 0.92;
-            const maxGridH = canvas.height * 0.58; // dikecilin dari 0.72 -- sebelumnya grid makan kebanyakan tinggi, gak nyisain cukup ruang buat hud-bottom
+            // Dynamic clearance: Calculate actual height of top and bottom HUDs
+            const hudTopEl = document.getElementById('hud-top');
+            const hudBottomEl = document.getElementById('hud-bottom');
 
-            // cellW/cellH DIPISAH (gak dipaksa persegi) supaya grid ngisi
-            // penuh lebar+tinggi layar yang tersedia -- di HP landscape yang
-            // rasionya lebih lebar dari 16:9, cellW jadi lebih gede dari cellH,
-            // map-nya melebar ngisi layar alih-alih nyisain margin kosong
-            // kiri-kanan. cellSize (min dari keduanya) tetep dijaga buat elemen
-            // bundar biar gak gepeng.
+            const isShortLandscape = window.innerHeight <= 600 && window.innerWidth > window.innerHeight;
+            const topClearance = hudTopEl && !hudTopEl.classList.contains('hidden') 
+                ? Math.max(isShortLandscape ? 40 : 48, hudTopEl.offsetHeight) 
+                : (isShortLandscape ? 40 : 54);
+            const bottomClearance = hudBottomEl && !hudBottomEl.classList.contains('hidden') 
+                ? Math.max(isShortLandscape ? 46 : 56, hudBottomEl.offsetHeight) 
+                : (isShortLandscape ? 48 : 64);
+
+            const maxGridW = canvas.width * 0.94;
+            const availableH = Math.max(120, canvas.height - topClearance - bottomClearance - 6);
+
             cellW = Math.floor(maxGridW / gridCols);
-            cellH = Math.floor(maxGridH / gridRows);
+            cellH = Math.floor(availableH / gridRows);
             cellSize = Math.min(cellW, cellH);
             offsetX = Math.floor((canvas.width - gridCols * cellW) / 2);
-            offsetY = Math.floor((canvas.height - gridRows * cellH) / 2) - 39; // -21px lagi (total -39 dari baseline awal)
+            offsetY = topClearance + Math.floor((availableH - gridRows * cellH) / 2) + 2;
 
             // Update pixel path based on calculated coordinates
             pixelPath = gridPath.map(pt => ({
@@ -1597,6 +1662,40 @@
             document.getElementById('btn-audio').innerText = SoundEngine.muted ? '🔇' : '🔊';
         };
 
+        function togglePause(forceState) {
+            if (gameState !== 'PLAYING') return;
+            isPaused = typeof forceState === 'boolean' ? forceState : !isPaused;
+            const pauseModal = document.getElementById('pause-screen');
+            const btnPause = document.getElementById('btn-pause');
+
+            if (isPaused) {
+                if (pauseModal) pauseModal.classList.remove('hidden');
+                if (btnPause) btnPause.innerText = '▶️';
+            } else {
+                if (pauseModal) pauseModal.classList.add('hidden');
+                if (btnPause) btnPause.innerText = '⏸️';
+                lastTimestamp = performance.now();
+            }
+            SoundEngine.playSelect();
+            triggerHaptic(15);
+        }
+
+        document.getElementById('btn-pause').onclick = () => togglePause();
+        document.getElementById('btn-resume-game').onclick = () => togglePause(false);
+        document.getElementById('btn-restart-from-pause').onclick = () => {
+            togglePause(false);
+            startGame();
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'p' || e.key === 'P' || e.code === 'Space') {
+                if (gameState === 'PLAYING') {
+                    e.preventDefault();
+                    togglePause();
+                }
+            }
+        });
+
         let lastTimestamp = performance.now();
 
         function gameLoop(timestamp) {
@@ -1606,58 +1705,60 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (gameState === 'PLAYING') {
-                if (overclockTimer > 0) overclockTimer -= dt;
+                if (!isPaused) {
+                    if (overclockTimer > 0) overclockTimer -= dt;
 
-                // Wave Spawner Updates
-                if (isWaveActive && waveQueue.length > 0) {
-                    spawnTimer += dt * gameSpeed;
-                    if (spawnTimer >= 0.8) {
-                        const nextEnemy = waveQueue.shift();
-                        enemies.push(new Enemy(nextEnemy.type, nextEnemy.healthMult));
-                        spawnTimer = 0;
+                    // Wave Spawner Updates
+                    if (isWaveActive && waveQueue.length > 0) {
+                        spawnTimer += dt * gameSpeed;
+                        if (spawnTimer >= 0.8) {
+                            const nextEnemy = waveQueue.shift();
+                            enemies.push(new Enemy(nextEnemy.type, nextEnemy.healthMult));
+                            spawnTimer = 0;
+                        }
+                    } else if (isWaveActive && waveQueue.length === 0 && enemies.length === 0) {
+                        // Wave Cleared
+                        isWaveActive = false;
+
+                        // Evaluasi DDA setelah wave selesai
+                        DDAController.endWave();
+
+                        currentWave++;
+                        dataCores += 50 + currentWave * 10;
+                        if (currentWave > maxWave) {
+                            triggerGameOver(true);
+                        }
                     }
-                } else if (isWaveActive && waveQueue.length === 0 && enemies.length === 0) {
-                    // Wave Cleared
-                    isWaveActive = false;
 
-                    // Evaluasi DDA setelah wave selesai
-                    DDAController.endWave();
+                    // Entity Updates
+                    enemies.forEach(e => e.update(dt));
+                    towers.forEach(t => t.update(timestamp));
+                    projectiles.forEach(p => p.update(dt));
+                    particles.forEach(p => p.update(dt));
 
-                    currentWave++;
-                    dataCores += 50 + currentWave * 10;
-                    if (currentWave > maxWave) {
-                        triggerGameOver(true);
+                    // Cleanup Marked Entities
+                    enemies = enemies.filter(e => !e.markedForDeletion);
+                    projectiles = projectiles.filter(p => !p.markedForDeletion);
+                    particles = particles.filter(p => !p.markedForDeletion);
+
+                    // ── Batasi total lightning beam aktif (safety) ──
+                    const MAX_BEAMS = 40;
+                    const beams = projectiles.filter(p => p instanceof LightningBeam);
+                    if (beams.length > MAX_BEAMS) {
+                        // Hapus yang paling tua (life terkecil)
+                        beams.sort((a, b) => a.life - b.life);
+                        for (let i = 0; i < beams.length - MAX_BEAMS; i++) {
+                            beams[i].markedForDeletion = true;
+                        }
                     }
+
+                    // Update floating texts
+                    floatingTexts.forEach(ft => ft.update(dt));
+                    floatingTexts = floatingTexts.filter(ft => !ft.markedForDeletion);
+
+                    // DDA assist tick — kalau core hampir mati, kecilkan kesulitan pelan-pelan
+                    DDAController.assistTick(dt);
                 }
-
-                // Entity Updates
-                enemies.forEach(e => e.update(dt));
-                towers.forEach(t => t.update(timestamp));
-                projectiles.forEach(p => p.update(dt));
-                particles.forEach(p => p.update(dt));
-
-                // Cleanup Marked Entities
-                enemies = enemies.filter(e => !e.markedForDeletion);
-                projectiles = projectiles.filter(p => !p.markedForDeletion);
-                particles = particles.filter(p => !p.markedForDeletion);
-
-                // ── Batasi total lightning beam aktif (safety) ──
-                const MAX_BEAMS = 40;
-                const beams = projectiles.filter(p => p instanceof LightningBeam);
-                if (beams.length > MAX_BEAMS) {
-                    // Hapus yang paling tua (life terkecil)
-                    beams.sort((a, b) => a.life - b.life);
-                    for (let i = 0; i < beams.length - MAX_BEAMS; i++) {
-                        beams[i].markedForDeletion = true;
-                    }
-                }
-
-                // Update floating texts
-                floatingTexts.forEach(ft => ft.update(dt));
-                floatingTexts = floatingTexts.filter(ft => !ft.markedForDeletion);
-
-                // DDA assist tick — kalau core hampir mati, kecilkan kesulitan pelan-pelan
-                DDAController.assistTick(dt);
 
                 updateHUD();
             }
@@ -1885,8 +1986,14 @@
             floatingTexts = [];
             selectedPlacement = null;
             selectedNodeInstance = null;
+            isPaused = false;
             hidePlacementBubble();
             hideNodeModal();
+
+            const pauseModal = document.getElementById('pause-screen');
+            if (pauseModal) pauseModal.classList.add('hidden');
+            const btnPause = document.getElementById('btn-pause');
+            if (btnPause) btnPause.innerText = '⏸️';
 
             // Reset DDA state
             DDAController.difficultyScale = 1.0;
@@ -1911,14 +2018,22 @@
             isWaveActive = false;
             gameState = 'PLAYING';
             
+            // Re-render grid using exact active HUD dimensions
+            resizeCanvas();
+
             // Cek orientasi saat game mulai
             setTimeout(() => {
                 checkOrientation();
+                resizeCanvas();
             }, 100);
         }
 
         function triggerGameOver(isWin = false) {
             gameState = 'GAMEOVER';
+            isPaused = false;
+            const pauseModal = document.getElementById('pause-screen');
+            if (pauseModal) pauseModal.classList.add('hidden');
+
             document.getElementById('hud-top').classList.add('hidden');
             document.getElementById('hud-bottom').classList.add('hidden');
             selectedPlacement = null;
