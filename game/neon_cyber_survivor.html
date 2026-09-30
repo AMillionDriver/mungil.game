@@ -816,6 +816,7 @@
         const CAMERA_ZOOM = 0.72;
 
         let isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        const MAX_ACTIVE_ENEMIES = isTouchDevice ? 38 : 50; // Cap musuh aktif agar 60 FPS terkunci mulus di HP
         
         let gameState = 'MENU'; // MENU, PLAYING, UPGRADE, GAMEOVER
         let gameTime = 0;
@@ -903,34 +904,57 @@
         const ShootingStats = {
             totalShots: 0,
             totalHits: 0,
-            totalMisses: 0,
-            lastShotTime: 0,
-            consecutiveHits: 0,
-            consecutiveMisses: 0,
-            maxConsecutiveHits: 0,
+            styleScore: 0, // 0 - 100 DMC Style Meter
+            comboKills: 0,
+            lastKillTime: 0,
             
             recordShot(hit) {
                 this.totalShots++;
                 if (hit) {
                     this.totalHits++;
-                    this.consecutiveHits++;
-                    this.consecutiveMisses = 0;
-                    this.maxConsecutiveHits = Math.max(this.maxConsecutiveHits, this.consecutiveHits);
+                }
+            },
+
+            recordKill(enemyType = 'drone') {
+                const now = performance.now();
+                if (now - this.lastKillTime < 2400) {
+                    this.comboKills++;
                 } else {
-                    this.totalMisses++;
-                    this.consecutiveMisses++;
-                    this.consecutiveHits = 0;
+                    this.comboKills = 1;
+                }
+                this.lastKillTime = now;
+
+                // Points based on target complexity
+                let points = 7;
+                if (enemyType === 'kamikaze' || enemyType === 'sniper' || enemyType === 'charger') points = 18;
+                else if (enemyType === 'boss') points = 40;
+                else if (enemyType === 'swarmer') points = 3.5;
+
+                // Multiplier based on combo streak
+                const comboMult = Math.min(2.2, 1 + this.comboKills * 0.12);
+                this.styleScore = Math.min(100, this.styleScore + points * comboMult);
+            },
+
+            onPlayerHit() {
+                // Getting hit significantly penalizes DMC style rank!
+                this.styleScore = Math.max(0, this.styleScore - 28);
+                this.comboKills = 0;
+            },
+
+            update(dt = 0.016) {
+                // Style meter gradually decays when not eliminating enemies
+                const now = performance.now();
+                if (now - this.lastKillTime > 1600) {
+                    this.styleScore = Math.max(0, this.styleScore - 14 * dt);
                 }
             },
             
             reset() {
                 this.totalShots = 0;
                 this.totalHits = 0;
-                this.totalMisses = 0;
-                this.lastShotTime = 0;
-                this.consecutiveHits = 0;
-                this.consecutiveMisses = 0;
-                this.maxConsecutiveHits = 0;
+                this.styleScore = 0;
+                this.comboKills = 0;
+                this.lastKillTime = 0;
             },
             
             getAccuracy() {
@@ -938,23 +962,12 @@
             },
             
             getRank() {
-                // DMC-style RANK based on accuracy and streaks.
-                // MIN_SHOTS_FOR_RANK: tanpa syarat ini, 10 tembakan pertama yang
-                // kebetulan kena semua (hitRate 100%, wajar banget di awal game
-                // pas musuh masih gampang) langsung nembus syarat S walau sample-nya
-                // kekecilan buat dibilang "akurat" beneran -- itu yang bikin rank
-                // 'meledak' ke S dalam hitungan detik.
-                const MIN_SHOTS_FOR_RANK = 20;
-                const accuracy = this.getAccuracy();
-                const hitRate = this.totalShots > 0 ? this.totalHits / this.totalShots : 0;
-                const streakBonus = this.maxConsecutiveHits / 20; // bonus untuk streak panjang
-
-                if (this.totalShots < MIN_SHOTS_FOR_RANK) return 'E';
-                if (hitRate >= 0.85 && this.maxConsecutiveHits >= 10) return 'S';
-                if (hitRate >= 0.75 && this.maxConsecutiveHits >= 8) return 'A';
-                if (hitRate >= 0.60) return 'B';
-                if (hitRate >= 0.45) return 'C';
-                if (hitRate >= 0.30) return 'D';
+                // DMC Rank based on style meter and active combat momentum
+                if (this.styleScore >= 80) return 'S';
+                if (this.styleScore >= 60) return 'A';
+                if (this.styleScore >= 40) return 'B';
+                if (this.styleScore >= 20) return 'C';
+                if (this.styleScore >= 6) return 'D';
                 return 'E';
             },
         };
@@ -981,14 +994,14 @@
             lastHeartbeatTime: 0,
 
             PHASE_DURATIONS: {
-                BUILD_UP: 18,     // Tensi meningkat
+                BUILD_UP: 20,     // Tensi meningkat
                 PEAK: 10,         // Gelombang Horde / Cyber Swarm
-                PEAK_FADE: 4,     // Pembersihan sisa horde
-                RELAX: 7,         // Lembah hening / Breather: player pulihkan HP & kumpul gem
+                PEAK_FADE: 5,     // Pembersihan sisa horde
+                RELAX: 8,         // Lembah hening / Breather: player pulihkan HP & kumpul gem
             },
 
-            // ── RE4 Attack Token System (Kini diperluas agar swarm tetap mendesak) ──
-            maxAttackTokens: 10,
+            // ── RE4 Attack Token System ──
+            maxAttackTokens: 8,
             currentAttackers: new Set(),
 
             resetSession() {
@@ -1009,13 +1022,22 @@
             },
 
             calculateDirectorLevel(rank, hpRatio) {
-                let lvl = 1;
-                if (gameTime > 30) lvl += 1;
-                if (gameTime > 75 || killCount > 120) lvl += 1;
-                if (rank === 'A' || rank === 'S' || ShootingStats.getAccuracy() > 0.65) lvl += 1;
-                if (gameTime > 180 && killCount > 350) lvl += 1;
+                // Progression terkontrol berbasis waktu agar tidak melompat instan ke Level IV di awal game
+                let baseTier = 1;
+                if (gameTime >= 240) baseTier = 4;       // Fase Endgame (menit 4+)
+                else if (gameTime >= 150) baseTier = 3;   // Fase Pertengahan (menit 2.5+)
+                else if (gameTime >= 60) baseTier = 2;    // Fase Awal-Menengah (menit 1+)
+                else baseTier = 1;                        // Fase Pemanasan (0 - 60 detik = PASTI Level 1)
 
-                // RE4 Dynamic Mercy: Saat player sekarat parah (HP < 25%), Director menurunkan level ancaman 1-2 tingkat
+                // Bonus adaptif: +1 level HANYA jika pemain bermain sangat dominan (Rank S/A) setelah menit ke-1
+                let adaptiveBonus = 0;
+                if ((rank === 'S' || rank === 'A') && gameTime >= 55 && killCount > 50) {
+                    adaptiveBonus = 1;
+                }
+
+                let lvl = baseTier + adaptiveBonus;
+
+                // RE4 Dynamic Mercy: Saat player kritis (HP < 25%), Director menurunkan level ancaman 1-2 tingkat
                 if (hpRatio < 0.25) lvl = Math.max(1, lvl - 1);
                 if (hpRatio < 0.15) lvl = Math.max(1, lvl - 2);
 
@@ -1076,7 +1098,7 @@
 
                 // 5. Active Tactical Formations (Counter-Kiting & Ambush)
                 this.formationTimer += dt;
-                const formationInterval = Math.max(8, 16 - this.directorLevel * 1.5);
+                const formationInterval = Math.max(14, 25 - this.directorLevel * 2.2);
                 if (this.formationTimer >= formationInterval && this.phase !== 'RELAX' && gameState === 'PLAYING') {
                     this.triggerActiveTacticalFormation();
                     this.formationTimer = 0;
@@ -1124,25 +1146,25 @@
             },
 
             triggerActiveTacticalFormation() {
-                // Taktik aktif berdasarkan Director Level:
+                // Cek sisa kapasitas musuh agar tidak membebani HP
+                const roomLeft = MAX_ACTIVE_ENEMIES - enemies.length;
+                if (roomLeft < 4) return;
+
+                // Taktik aktif terkontrol berdasarkan Director Level:
                 if (this.directorLevel >= 5) {
-                    // Level 5: Ring Ambush + Charger/Sniper
-                    this.spawnRingAmbush(10 + Math.floor(Math.random() * 6));
-                    this.spawnDisruptor();
+                    this.spawnRingAmbush(Math.min(roomLeft, 8));
+                    if (roomLeft >= 2) this.spawnDisruptor();
                 } else if (this.directorLevel >= 4) {
-                    // Level 4: Pincer Wave + Disruptor
-                    this.spawnPincerWave(8);
-                    this.spawnDisruptor();
+                    this.spawnPincerWave(Math.min(roomLeft, 6));
+                    if (roomLeft >= 2) this.spawnDisruptor();
                 } else if (this.directorLevel >= 3) {
-                    // Level 3: Intercept Swarm atau Pincer
                     if (Math.random() < 0.5) {
-                        this.spawnInterceptSwarm(6);
+                        this.spawnInterceptSwarm(Math.min(roomLeft, 4));
                     } else {
-                        this.spawnPincerWave(6);
+                        this.spawnPincerWave(Math.min(roomLeft, 4));
                     }
                 } else if (this.directorLevel >= 2) {
-                    // Level 2: Intercept Swarm
-                    this.spawnInterceptSwarm(4);
+                    this.spawnInterceptSwarm(Math.min(roomLeft, 3));
                 }
             },
 
@@ -1605,6 +1627,7 @@
                 this.hp = Math.max(0, this.hp - amount);
                 this.invincibleTimer = 0.35; // 350ms i-frame agar tidak terkena hit beruntun instan
                 DDAController.recordDamage(amount);
+                ShootingStats.onPlayerHit(); // Mengurangi style meter saat terkena damage (ala DMC)
                 triggerHaptic([45, 60]);
                 triggerScreenShake(amount >= 18 ? 14 : 8);
                 SoundEngine.playPlayerHurt();
@@ -1810,13 +1833,19 @@
                 this.radius = 4;
                 this.damage = damage;
                 this.markedForDeletion = false;
+                this.hit = false;
+                this.tracked = false;
             }
 
             update() {
                 this.x += this.vx;
                 this.y += this.vy;
 
-                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                if (this.x < -30 || this.x > canvas.width + 30 || this.y < -30 || this.y > canvas.height + 30) {
+                    if (!this.hit && !this.tracked) {
+                        ShootingStats.recordShot(false);
+                        this.tracked = true;
+                    }
                     this.markedForDeletion = true;
                 }
             }
@@ -2085,6 +2114,7 @@
                     GameDirector.releaseAttackToken(this);
                     killCount++;
                     DDAController.recordKill();
+                    ShootingStats.recordKill(this.type);
                     gems.push(new Gem(this.x, this.y, this.xpValue));
                     // RE4 & The Last of Us Dynamic Pity Health Drops
                     GameDirector.checkEnemyDrop(this.x, this.y);
@@ -2334,20 +2364,38 @@
         let bossSpawned = false;
 
         function spawnManager(now) {
+            // Spawn Boss setiap 60 detik (hanya jika bukan fase RELAX)
+            if (Math.floor(gameTime) > 0 && Math.floor(gameTime) % 60 === 0 && !bossSpawned && GameDirector.phase !== 'RELAX') {
+                if (enemies.length < MAX_ACTIVE_ENEMIES + 2) {
+                    enemies.push(new Enemy('boss'));
+                }
+                bossSpawned = true;
+            } else if (Math.floor(gameTime) % 60 !== 0) {
+                bossSpawned = false;
+            }
+
+            // Hard cap jumlah musuh aktif untuk menjaga 60 FPS tanpa lag di HP
+            if (enemies.length >= MAX_ACTIVE_ENEMIES) return;
+
             const spawnMult = GameDirector.getSpawnRateMultiplier();
             if (spawnMult <= 0) return;
 
-            // Kecepatan spawn jauh lebih padat (140ms - 850ms) untuk mencapai ribuan kill
-            const baseSpawnRate = Math.max(140, 850 - gameTime * 8);
-            const spawnRate = baseSpawnRate / spawnMult;
+            // Pacing spawn yang gradual: 950ms awal, perlahan turun seiring waktu (tidak langsung spam)
+            const baseSpawnRate = Math.max(420, 950 - gameTime * 2.2);
+            const clampedMult = Math.max(0.7, Math.min(1.6, spawnMult));
+            const spawnRate = baseSpawnRate / clampedMult;
 
             if (now - lastSpawn > spawnRate) {
+                const roomLeft = MAX_ACTIVE_ENEMIES - enemies.length;
+                if (roomLeft <= 0) return;
+
                 const rand = Math.random();
                 const dLvl = GameDirector.directorLevel;
 
-                // 1. Swarm Batch (40% peluang spawn gerombolan 3-7 Mini Swarmers sekaligus)
-                if (rand < 0.40) {
-                    const batchSize = Math.min(8, 3 + Math.floor(Math.random() * (dLvl + 2)));
+                // 1. Swarm Batch: porsi gerombolan dibatasi kuota dan level Director
+                if (rand < 0.35 && roomLeft >= 2) {
+                    const maxBatch = dLvl <= 1 ? 2 : (dLvl <= 3 ? 4 : 5);
+                    const batchSize = Math.min(roomLeft, Math.max(1, Math.min(maxBatch, 1 + Math.floor(Math.random() * (dLvl + 1)))));
                     for (let i = 0; i < batchSize; i++) {
                         enemies.push(new Enemy('swarmer'));
                     }
@@ -2370,22 +2418,16 @@
                     enemies.push(new Enemy('drone'));
                 }
 
-                // Ekstra swarm tambahan saat fase PEAK (Horde Surge)
-                if (GameDirector.phase === 'PEAK' && Math.random() < 0.5) {
-                    for (let i = 0; i < 4; i++) {
+                // Ekstra swarm saat fase PEAK (Horde Surge) disesuaikan dengan kapasitas layar
+                if (GameDirector.phase === 'PEAK' && Math.random() < 0.4) {
+                    const peakRemaining = MAX_ACTIVE_ENEMIES - enemies.length;
+                    const peakExtra = Math.min(peakRemaining, Math.min(3, dLvl));
+                    for (let i = 0; i < peakExtra; i++) {
                         enemies.push(new Enemy('swarmer'));
                     }
                 }
 
                 lastSpawn = now;
-            }
-
-            // Spawn Boss setiap 60 detik (hanya jika bukan fase RELAX)
-            if (Math.floor(gameTime) > 0 && Math.floor(gameTime) % 60 === 0 && !bossSpawned && GameDirector.phase !== 'RELAX') {
-                enemies.push(new Enemy('boss'));
-                bossSpawned = true;
-            } else if (Math.floor(gameTime) % 60 !== 0) {
-                bossSpawned = false;
             }
         }
 
@@ -2496,6 +2538,7 @@
                 // DDA update and UI feedback (integrated with GameDirector)
                 DDAController.update(dt);
                 GameDirector.update(dt);
+                ShootingStats.update(dt);
 
                 // Bullet updates & collision
                 bullets.forEach(b => b.update());
@@ -2514,24 +2557,14 @@
                             if (d < bullet.radius + enemy.radius) {
                                 enemy.takeDamage(bullet.damage);
                                 bullet.markedForDeletion = true;
-                                // Record hit for accuracy tracking
-                                ShootingStats.recordShot(true);
+                                bullet.hit = true;
+                                if (!bullet.tracked) {
+                                    ShootingStats.recordShot(true);
+                                    bullet.tracked = true;
+                                }
                             }
                         }
                     });
-                });
-                
-                // Track bullets that went off-screen without hitting (misses)
-                bullets.forEach(bullet => {
-                    if (bullet.markedForDeletion) return;
-                    const now = Date.now();
-                    if (now - ShootingStats.lastShotTime > 1000) { // 1 second after shot = probably missed
-                        // Only record miss if we haven't already
-                        if (!bullet.tracked) {
-                            ShootingStats.recordShot(false);
-                            bullet.tracked = true;
-                        }
-                    }
                 });
 
                 // Cleanup deleted entities
@@ -2600,18 +2633,18 @@
             // Update RANK display (show after first shot)
             const rankBadge = document.getElementById('rank-badge');
             const rankValue = document.getElementById('rank-value');
-            if (ShootingStats.totalShots > 0) {
+            if (killCount > 0 || ShootingStats.totalShots > 0) {
                 rankBadge.classList.remove('hidden');
-                rankValue.innerText = ShootingStats.getRank();
-                
-                // Color based on rank
                 const rank = ShootingStats.getRank();
+                rankValue.innerText = rank;
+                
+                // Color based on DMC rank tier
                 if (rank === 'S') rankValue.style.color = '#fbbf24'; // gold
                 else if (rank === 'A') rankValue.style.color = '#f97316'; // orange
                 else if (rank === 'B') rankValue.style.color = '#facc15'; // yellow
                 else if (rank === 'C') rankValue.style.color = '#84cc16'; // green
                 else if (rank === 'D') rankValue.style.color = '#14b8a6'; // teal
-                else rankValue.style.color = '#6b7280'; // gray
+                else rankValue.style.color = '#94a3b8'; // slate / E
             } else {
                 rankBadge.classList.add('hidden');
             }
