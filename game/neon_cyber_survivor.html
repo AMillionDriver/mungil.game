@@ -68,7 +68,7 @@
         /* ═══════════════════════════════════════════════════════════════
            LANDSCAPE MOBILE — COMPACT MODE
            ═══════════════════════════════════════════════════════════════ */
-        @media (orientation: landscape) and (max-height: 500px) {
+        @media (orientation: landscape) and (max-height: 600px) {
             
             /* ── HUD padding minimal ── */
             #hud {
@@ -217,6 +217,57 @@
                 bottom: max(95px, calc(env(safe-area-inset-bottom, 0px) + 75px)) !important;
                 right: max(16px, calc(env(safe-area-inset-right, 0px) + 12px)) !important;
             }
+
+            /* Top bar: health | 3 kotak (Kills/Rank/Waktu) | sound -- satu baris,
+               gak wrap, gak ada yang keluar viewport. Sebelumnya box-box ini
+               masih pakai min-width desktop (120px/80px/120px) yang jelas gak
+               muat di layar sempit, jadi kepotong/dorong keluar layar. */
+            #hud > div:first-child {
+                gap: 6px !important;
+                flex-wrap: nowrap !important;
+            }
+
+            /* Health & XP: kasih ruang secukupnya, jangan sampe kegencet nol
+               sama box-box di sampingnya (itu penyebab teks "HP SITEM" numpuk
+               vertikal aneh di screenshot). */
+            #hud .flex-1 {
+                min-width: 0 !important; /* biar flexbox boleh nyusut normal, teks di-elipsis bukan wrap acak */
+            }
+            #hud .flex-1 .text-xs {
+                font-size: 9px !important;
+            }
+            #hud .flex-1 span {
+                white-space: nowrap !important;
+            }
+
+            /* Kills/Rank/Waktu: kotak kecil senada sama treatment landscape,
+               dikelompokkan rapat di sebelah health indicator. */
+            #hud .glass-panel {
+                padding: 3px 6px !important;
+                border-radius: 8px !important;
+                min-width: 42px !important;
+            }
+            #hud .glass-panel > div:first-child {
+                font-size: 7px !important;
+                letter-spacing: 0 !important;
+            }
+            #hud .glass-panel > div:last-child {
+                font-size: 13px !important;
+                line-height: 1.1 !important;
+            }
+            #rank-badge {
+                min-width: 38px !important;
+            }
+
+            /* Sound: icon doang, gak makan tempat */
+            #btn-sound {
+                padding: 4px !important;
+                flex-shrink: 0 !important;
+            }
+            #btn-sound svg {
+                width: 16px !important;
+                height: 16px !important;
+            }
         }
     </style>
 </head>
@@ -232,7 +283,7 @@
                     <span>HP SISTEM</span>
                     <span id="hp-text">100 / 100</span>
                 </div>
-                <div id="hp-bar-track" class="w-full bg-gray-900/80 rounded-full h-2.5 md:h-3 border border-cyan-500/30 overflow-hidden p-0.5">
+                <div id="hp-bar-track" class="w-full bg-gray-900/80 rounded-full h-2.5 md:h-3 border border-cyan-500/60 overflow-hidden p-0.5">
                     <div id="hp-bar" class="bg-gradient-to-r from-red-500 via-pink-500 to-cyan-400 h-full rounded-full transition-all duration-150" style="width: 100%"></div>
                 </div>
 
@@ -240,7 +291,7 @@
                     <span>LEVEL <span id="level-num">1</span></span>
                     <span id="xp-text">0 / 50</span>
                 </div>
-                <div id="xp-bar-track" class="w-full bg-gray-900/80 rounded-full h-1.5 md:h-2 border border-amber-500/30 overflow-hidden p-0.5">
+                <div id="xp-bar-track" class="w-full bg-gray-900/80 rounded-full h-1.5 md:h-2 border border-amber-500/60 overflow-hidden p-0.5">
                     <div id="xp-bar" class="bg-gradient-to-r from-amber-500 to-yellow-300 h-full rounded-full transition-all duration-150" style="width: 0%"></div>
                 </div>
             </div>
@@ -257,7 +308,7 @@
                 <div id="rank-value" class="text-xs md:text-xl font-bold font-orbitron text-amber-400">E</div>
             </div>
             
-            <!-- Stats Badge: Waktu (HANYA SATU) -->
+            <!-- Stats Badge: Waktu -->
             <div class="glass-panel px-2.5 py-1.5 md:px-4 md:py-2 rounded-xl border border-pink-500/40 text-center min-w-[55px] md:min-w-[90px]">
                 <div class="text-[8px] md:text-[10px] uppercase text-pink-300 tracking-wider">Waktu</div>
                 <div id="timer-text" class="text-xs md:text-xl font-bold font-orbitron text-pink-400">00:00</div>
@@ -305,7 +356,7 @@
     </div>
 
     <!-- Main Menu Screen -->
-    <div id="menu-screen" class="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div id="menu-screen" class="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
         <div class="glass-panel max-w-md w-full rounded-2xl p-6 md:p-8 border border-cyan-500/50 text-center flex flex-col items-center gap-4 md:gap-6 shadow-[0_0_40px_rgba(0,243,255,0.2)] max-h-[95vh] overflow-y-auto">
             <div>
                 <h1 class="text-3xl md:text-5xl font-extrabold font-orbitron tracking-wider neon-text-cyan text-cyan-400 mb-1 md:mb-2">NEON CYBER</h1>
@@ -681,6 +732,11 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
+        // Zoom kamera keluar (ref: PvZ2) -- 1.0 = ukuran asli, makin kecil makin
+        // luas area yang keliatan. 0.72 dipilih biar player & musuh gak lagi
+        // kerasa penuh-sesak di layar tapi tetep gampang diliat di HP kompak.
+        const CAMERA_ZOOM = 0.72;
+
         let isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
         
         let gameState = 'MENU'; // MENU, PLAYING, UPGRADE, GAMEOVER
@@ -691,6 +747,81 @@
         // ═══════════════════════════════════════════════════════
         // SHOOTING & ACCURACY SYSTEM (DMC-style RANK tracking)
         // ═══════════════════════════════════════════════════════
+        // ── Player Telemetry: rekam pola main tiap sesi, disimpan localStorage ──
+        // Dipakai GameDirector buat nentuin starting pace sesi BERIKUTNYA
+        // berdasarkan histori nyata pemain (bukan cuma performa live sesi ini
+        // doang kayak DDAController). Contoh: pemain yang rata-rata survival-nya
+        // pendek terus-terusan, sesi baru dimulai sedikit lebih santai.
+        const PlayerTelemetry = {
+            STORAGE_KEY: 'ncs_player_history',
+            MAX_HISTORY: 20, // cap biar localStorage gak numpuk tanpa batas
+
+            dashCount: 0,
+            perksTaken: [],
+
+            resetSession() {
+                this.dashCount = 0;
+                this.perksTaken = [];
+            },
+
+            recordDash() {
+                this.dashCount++;
+            },
+
+            recordPerk(upgradeId) {
+                this.perksTaken.push(upgradeId);
+            },
+
+            loadHistory() {
+                try {
+                    const raw = localStorage.getItem(this.STORAGE_KEY);
+                    return raw ? JSON.parse(raw) : [];
+                } catch (e) {
+                    return [];
+                }
+            },
+
+            finalizeSession(survivalTime, kills, level) {
+                const session = {
+                    timestamp: Date.now(),
+                    survivalTime: Math.round(survivalTime),
+                    kills,
+                    level,
+                    dashCount: this.dashCount,
+                    perksTaken: [...this.perksTaken]
+                };
+                const history = this.loadHistory();
+                history.push(session);
+                while (history.length > this.MAX_HISTORY) {
+                    history.shift(); // buang sesi paling lama
+                }
+                try {
+                    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(history));
+                } catch (e) {
+                    console.warn('PlayerTelemetry: gagal simpan ke localStorage', e);
+                }
+                return session;
+            },
+
+            // Ringkasan histori -- dipanggil GameDirector pas startGame() buat
+            // nentuin titik mulai pace, bukan pas gameLoop (biar gak mahal tiap frame).
+            getAggregateStats() {
+                const history = this.loadHistory();
+                if (history.length === 0) return null;
+
+                const avgSurvivalTime = history.reduce((s, h) => s + h.survivalTime, 0) / history.length;
+                const avgDashPerSession = history.reduce((s, h) => s + h.dashCount, 0) / history.length;
+
+                const perkFreq = {};
+                history.forEach(h => (h.perksTaken || []).forEach(id => {
+                    perkFreq[id] = (perkFreq[id] || 0) + 1;
+                }));
+                const favoritePerk = Object.keys(perkFreq).sort((a, b) => perkFreq[b] - perkFreq[a])[0] || null;
+
+                return { sessionsPlayed: history.length, avgSurvivalTime, avgDashPerSession, favoritePerk, perkFreq };
+            }
+        };
+
         const ShootingStats = {
             totalShots: 0,
             totalHits: 0,
@@ -729,11 +860,18 @@
             },
             
             getRank() {
-                // DMC-style RANK based on accuracy and streaks
+                // DMC-style RANK based on accuracy and streaks.
+                // MIN_SHOTS_FOR_RANK: tanpa syarat ini, 10 tembakan pertama yang
+                // kebetulan kena semua (hitRate 100%, wajar banget di awal game
+                // pas musuh masih gampang) langsung nembus syarat S walau sample-nya
+                // kekecilan buat dibilang "akurat" beneran -- itu yang bikin rank
+                // 'meledak' ke S dalam hitungan detik.
+                const MIN_SHOTS_FOR_RANK = 20;
                 const accuracy = this.getAccuracy();
                 const hitRate = this.totalShots > 0 ? this.totalHits / this.totalShots : 0;
                 const streakBonus = this.maxConsecutiveHits / 20; // bonus untuk streak panjang
-                
+
+                if (this.totalShots < MIN_SHOTS_FOR_RANK) return 'E';
                 if (hitRate >= 0.85 && this.maxConsecutiveHits >= 10) return 'S';
                 if (hitRate >= 0.75 && this.maxConsecutiveHits >= 8) return 'A';
                 if (hitRate >= 0.60) return 'B';
@@ -750,7 +888,8 @@
             difficulty: 1.0,      // current overall difficulty multiplier
             baseDifficulty: 1.0,  // base difficulty
             chaosFactor: 0.0,     // dynamic factor based on player performance
-            
+            historyOffset: 0.0,   // penyesuaian dari histori sesi-sesi sebelumnya (PlayerTelemetry)
+
             update() {
                 const accuracy = ShootingStats.getAccuracy();
                 const rank = ShootingStats.getRank();
@@ -767,11 +906,29 @@
                     this.chaosFactor += (0.0 - this.chaosFactor) * 0.05; // normalize
                 }
                 
-                this.difficulty = this.baseDifficulty + this.chaosFactor;
+                this.difficulty = this.baseDifficulty + this.chaosFactor + this.historyOffset;
                 this.baseDifficulty = 1.0 + (gameTime / 300); // slow base increase over time
                 
                 // Ensure difficulty stays within bounds
                 this.difficulty = Math.max(0.7, Math.min(2.0, this.difficulty));
+            },
+
+            // Dipanggil sekali di startGame(), BUKAN tiap frame -- nyesuain titik
+            // mulai pace berdasarkan histori beberapa sesi terakhir (PlayerTelemetry),
+            // bukan cuma performa live sesi yang lagi jalan (itu udah kepegang
+            // chaosFactor/DDAController). Baru aktif kalau udah >=3 sesi tercatat,
+            // biar gak overfit ke satu sesi yang kebetulan aneh (mati konyol sekali
+            // langsung nge-generalisir "pemain ini lemah" itu gak adil).
+            applyHistoryOffset() {
+                this.historyOffset = 0.0;
+                const stats = PlayerTelemetry.getAggregateStats();
+                if (!stats || stats.sessionsPlayed < 3) return;
+
+                if (stats.avgSurvivalTime < 60) {
+                    this.historyOffset = -0.15; // sering mati cepat -> mulai lebih santai
+                } else if (stats.avgSurvivalTime > 180) {
+                    this.historyOffset = 0.15;  // konsisten bertahan lama -> mulai lebih menantang
+                }
             },
             
             getMultiplier() {
@@ -796,7 +953,16 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // ── Hitung area playable ──
+        // VisualViewport API -- nangkep transisi address-bar collapse pas
+        // scroll (beda kasus dari orientationchange yang udah ditangani di
+        // bawah -- itu buat rotate device, ini buat address bar Chrome yang
+        // ilang/muncul tanpa device-nya diputer sama sekali). 'resize' klasik
+        // kadang gak ke-trigger buat transisi ini di sebagian versi Chrome.
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resizeCanvas);
+        }
+
+        // ── Hitung area playable (hardcoded offset, lebih reliable) ──
         function getPlayArea() {
             const isLandscape = window.innerWidth > window.innerHeight;
             const safeTop = isLandscape ? 36 : 48;
@@ -1059,6 +1225,7 @@
                 if (now - this.lastDash >= this.dashCooldown) {
                     this.lastDash = now;
                     this.isDashing = true;
+                    PlayerTelemetry.recordDash();
                     triggerHaptic(25);
                     createParticles(this.x, this.y, '#00f3ff', 12);
                     setTimeout(() => { this.isDashing = false; }, this.dashDuration);
@@ -1535,6 +1702,7 @@
                 `;
                 card.onclick = () => {
                     upg.apply();
+                    PlayerTelemetry.recordPerk(upg.id);
                     screen.classList.add('hidden');
                     lastTimestamp = performance.now();
                     gameState = 'PLAYING';
@@ -1581,6 +1749,16 @@
             lastTimestamp = timestamp;
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // ── Camera zoom-out (visual doang, gak nyentuh koordinat game) ──
+            // Semua logic (posisi, collision, spawn) tetap kerja di koordinat
+            // canvas asli persis kayak sebelumnya -- transform ini cuma bikin
+            // apa yang digambar KELIATAN lebih kecil & lebih ke tengah, efeknya
+            // kayak kamera mundur (ref: PvZ2) tanpa perlu ubah physics apapun.
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(CAMERA_ZOOM, CAMERA_ZOOM);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
 
             if (gameState === 'PLAYING') {
                 gameTime += dt;
@@ -1651,6 +1829,8 @@
                 player.draw();
             }
 
+            ctx.restore();
+
             animationFrameId = requestAnimationFrame(gameLoop);
         }
 
@@ -1718,6 +1898,7 @@
             gameTime = 0;
             killCount = 0;
             ShootingStats.reset(); // Reset accuracy tracking
+            PlayerTelemetry.resetSession(); // reset dash/perk counter sesi ini
 
             // Initialize DDA after player is fully reset
             DDAController.initialized = true;
@@ -1731,6 +1912,11 @@
             DDAController.damageTakenTotal = 0;
             DDAController.lastPlayerX = player.x;
             DDAController.lastPlayerY = player.y;
+
+            // Nyesuain titik mulai pace berdasarkan histori sesi-sesi sebelumnya
+            GameDirector.baseDifficulty = 1.0;
+            GameDirector.chaosFactor = 0.0;
+            GameDirector.applyHistoryOffset();
 
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('gameover-screen').classList.add('hidden');
@@ -1756,6 +1942,10 @@
             document.getElementById('final-time').innerText = `${mins}:${secs}`;
             document.getElementById('final-kills').innerText = killCount;
             document.getElementById('final-level').innerText = player.level;
+
+            // Simpen telemetri sesi ini ke localStorage buat dipakai GameDirector
+            // di sesi berikutnya (lihat GameDirector.applyHistoryOffset()).
+            PlayerTelemetry.finalizeSession(gameTime, killCount, player.level);
 
             document.getElementById('gameover-screen').classList.remove('hidden');
         }

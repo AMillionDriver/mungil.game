@@ -62,6 +62,94 @@
                 display: none !important;
             }
         }
+
+        /* ── Landscape mobile pendek: compact semua panel HUD ──
+           Game ini sebelumnya gak punya penyesuaian apapun buat landscape
+           pendek (cuma nyuruh rotate, abis itu UI-nya dibiarin ukuran
+           desktop) -- top bar, bottom bar, dan modal upgrade node semuanya
+           bisa kepotong/numpuk di viewport ~350-450px tinggi. Threshold
+           600px sama kayak yang dipakai neon_cyber_survivor.html, biar
+           konsisten nyakup HP dengan gesture-nav-bar juga. */
+        @media (orientation: landscape) and (max-height: 600px) {
+            #hud-top {
+                padding: 6px !important;
+            }
+            #hud-top .glass-panel {
+                padding: 4px 8px !important;
+                min-width: 0 !important;
+                gap: 6px !important;
+            }
+            #hud-top .w-8.h-8 {
+                width: 22px !important;
+                height: 22px !important;
+                font-size: 12px !important;
+            }
+            #hud-top .text-\[10px\] {
+                font-size: 8px !important;
+            }
+            #hud-top .text-xl {
+                font-size: 14px !important;
+            }
+            #hud-top .h-8.w-px {
+                height: 18px !important;
+            }
+            #btn-start-wave {
+                padding: 6px 10px !important;
+                font-size: 10px !important;
+            }
+            #btn-start-wave span {
+                white-space: nowrap;
+            }
+            #btn-speed, #btn-audio {
+                padding: 6px !important;
+            }
+
+            #hud-bottom {
+                bottom: 55px !important; /* naik 19px lagi dari 36px -- total 55px dari tepi bawah */
+                transform: translateX(calc(-50% + 9px)) !important; /* geser 9px ke kanan dari posisi center */
+            }
+            #hud-bottom .glass-panel {
+                padding: 4px !important;
+                gap: 6px !important;
+            }
+            /* Tombol tower (Pulsa/Frost/Plasma/dst) di-generate JS pakai class
+               generik (p-2, text-xl, min-w-[110px]) -- sebelumnya kelewat gak
+               ke-compact sama sekali, padahal ini yang paling makan tinggi di
+               baris hud-bottom (icon 20px + 2 baris teks + padding 16px). */
+            #tower-buttons-container button {
+                padding: 3px 6px !important;
+                min-width: 70px !important;
+                gap: 4px !important;
+            }
+            #tower-buttons-container button .text-xl {
+                font-size: 13px !important;
+            }
+            #tower-buttons-container button .text-\[10px\] {
+                font-size: 7px !important;
+            }
+            #btn-ability-emp, #btn-ability-overclock, #btn-ability-repair {
+                min-width: 42px !important;
+                padding: 3px !important;
+            }
+            #btn-ability-emp .text-lg, #btn-ability-overclock .text-lg, #btn-ability-repair .text-lg {
+                font-size: 14px !important;
+            }
+            #btn-ability-emp .text-\[10px\], #btn-ability-overclock .text-\[10px\], #btn-ability-repair .text-\[10px\] {
+                font-size: 7px !important;
+            }
+            #btn-ability-emp .text-\[9px\], #btn-ability-overclock .text-\[9px\], #btn-ability-repair .text-\[9px\] {
+                font-size: 6px !important;
+            }
+
+            /* Modal upgrade node: sempit di landscape pendek, jangan sampe
+               nubruk hud-bottom yang udah dipangkas ke bottom:4px di atas. */
+            #node-modal {
+                bottom: 60px !important;
+                width: 260px !important;
+                max-height: calc(100vh - 90px) !important;
+                overflow-y: auto !important;
+            }
+        }
     </style>
 </head>
 <body class="relative w-screen h-screen overflow-hidden flex flex-col justify-between select-none">
@@ -191,7 +279,7 @@
     </div>
 
     <!-- Start Menu Overlay -->
-    <div id="menu-screen" class="absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+    <div id="menu-screen" class="absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
         <div class="glass-panel max-w-lg w-full rounded-2xl p-8 border border-cyan-500/50 text-center flex flex-col items-center gap-6 shadow-[0_0_50px_rgba(0,243,255,0.25)]">
             <div>
                 <h1 class="text-4xl md:text-5xl font-black font-orbitron tracking-wider neon-text-cyan text-cyan-400 mb-1">NEON MAINFRAME</h1>
@@ -216,7 +304,7 @@
     </div>
 
     <!-- Game Over Screen -->
-    <div id="gameover-screen" class="absolute inset-0 z-40 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 hidden">
+    <div id="gameover-screen" class="absolute inset-0 z-40 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 overflow-y-auto hidden">
         <div class="glass-panel max-w-md w-full rounded-2xl p-8 border border-red-500/50 text-center flex flex-col items-center gap-6">
             <div>
                 <h2 id="gameover-title" class="text-4xl font-extrabold font-orbitron text-red-500 neon-text-magenta mb-2">MAINFRAME BREACHED</h2>
@@ -498,7 +586,8 @@
 
         let gridCols = 16;
         let gridRows = 9;
-        let cellSize = 50;
+        let cellW = 50, cellH = 50;
+        let cellSize = 50; // = Math.min(cellW, cellH) -- skala seragam khusus elemen bundar (musuh/tower/partikel) biar gak gepeng pas cellW != cellH
         let offsetX = 0;
         let offsetY = 0;
 
@@ -540,20 +629,51 @@
 
             // Recalculate Grid size to fit canvas cleanly
             const maxGridW = canvas.width * 0.92;
-            const maxGridH = canvas.height * 0.72;
+            const maxGridH = canvas.height * 0.58; // dikecilin dari 0.72 -- sebelumnya grid makan kebanyakan tinggi, gak nyisain cukup ruang buat hud-bottom
 
-            cellSize = Math.floor(Math.min(maxGridW / gridCols, maxGridH / gridRows));
-            offsetX = Math.floor((canvas.width - gridCols * cellSize) / 2);
-            offsetY = Math.floor((canvas.height - gridRows * cellSize) / 2) + 20;
+            // cellW/cellH DIPISAH (gak dipaksa persegi) supaya grid ngisi
+            // penuh lebar+tinggi layar yang tersedia -- di HP landscape yang
+            // rasionya lebih lebar dari 16:9, cellW jadi lebih gede dari cellH,
+            // map-nya melebar ngisi layar alih-alih nyisain margin kosong
+            // kiri-kanan. cellSize (min dari keduanya) tetep dijaga buat elemen
+            // bundar biar gak gepeng.
+            cellW = Math.floor(maxGridW / gridCols);
+            cellH = Math.floor(maxGridH / gridRows);
+            cellSize = Math.min(cellW, cellH);
+            offsetX = Math.floor((canvas.width - gridCols * cellW) / 2);
+            offsetY = Math.floor((canvas.height - gridRows * cellH) / 2) - 39; // -21px lagi (total -39 dari baseline awal)
 
             // Update pixel path based on calculated coordinates
             pixelPath = gridPath.map(pt => ({
-                x: offsetX + (pt.x + 0.5) * cellSize,
-                y: offsetY + (pt.y + 0.5) * cellSize
+                x: offsetX + (pt.x + 0.5) * cellW,
+                y: offsetY + (pt.y + 0.5) * cellH
             }));
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
+
+        // ── Robust resize handling ──
+        // Sebelumnya resizeCanvas() CUMA nempel ke event 'resize' polos dan
+        // dipanggil sekali pas load. Masalahnya: pas Chrome mobile address bar
+        // collapse gara-gara di-scroll (viewport beneran nambah tinggi), event
+        // 'resize' klasik itu KADANG gak ke-trigger buat transisi ini (perilaku
+        // umum/dikenal di banyak versi Chrome) -- grid jadi nyangkut kekalkulasi
+        // berdasarkan viewport awal yang lebih pendek (pas address bar masih
+        // kelihatan), gak pernah re-render pake ukuran yang beneran tersedia.
+        //
+        // Fix: (1) VisualViewport API -- API resmi yang DIDESAIN khusus nangkep
+        // perubahan viewport akibat address bar/keyboard, lebih reliable dari
+        // 'resize' klasik buat kasus ini. (2) Ikut re-trigger di orientationchange
+        // (sebelumnya cuma checkOrientation yang nempel di situ, resizeCanvas
+        // enggak). (3) Delayed re-check beberapa ratus ms setelah load, buat
+        // nangkep viewport yang baru 'settle' belakangan.
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resizeCanvas);
+        }
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 250);
+        });
+        setTimeout(resizeCanvas, 400); // catch-all: viewport yang settle telat setelah initial load
 
         class Enemy {
             constructor(type, healthMultiplier = 1) {
@@ -757,8 +877,8 @@
             constructor(gridX, gridY, type) {
                 this.gridX = gridX;
                 this.gridY = gridY;
-                this.x = offsetX + (gridX + 0.5) * cellSize;
-                this.y = offsetY + (gridY + 0.5) * cellSize;
+                this.x = offsetX + (gridX + 0.5) * cellW;
+                this.y = offsetY + (gridY + 0.5) * cellH;
                 this.type = type;
                 this.level = 1;
 
@@ -1138,8 +1258,8 @@
             mouse.x = e.clientX - rect.left;
             mouse.y = e.clientY - rect.top;
 
-            const gx = Math.floor((mouse.x - offsetX) / cellSize);
-            const gy = Math.floor((mouse.y - offsetY) / cellSize);
+            const gx = Math.floor((mouse.x - offsetX) / cellW);
+            const gy = Math.floor((mouse.y - offsetY) / cellH);
 
             if (gx >= 0 && gx < gridCols && gy >= 0 && gy < gridRows) {
                 mouse.gridX = gx;
@@ -1150,11 +1270,23 @@
             }
         });
 
-        canvas.addEventListener('click', () => {
-            if (gameState !== 'PLAYING' || !mouse.isHoveringGrid) return;
+        canvas.addEventListener('click', (e) => {
+            if (gameState !== 'PLAYING') return;
 
-            const gx = mouse.gridX;
-            const gy = mouse.gridY;
+            // Hitung posisi LANGSUNG dari event klik/tap ini, jangan nyandar ke
+            // mouse.gridX/gridY (di-update terpisah oleh mousemove). Di HP,
+            // sentuhan jari itu touchstart->touchend->click TANPA fase hover
+            // yang reliable kayak mouse di desktop -- mouse.gridX/gridY bisa
+            // nyangkut dari interaksi sebelumnya, bukan dari tap yang barusan.
+            // Ini penyebab tower ke-deploy di posisi yang gak sesuai tempat
+            // jari nyentuh layar.
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const gx = Math.floor((clickX - offsetX) / cellW);
+            const gy = Math.floor((clickY - offsetY) / cellH);
+
+            if (gx < 0 || gx >= gridCols || gy < 0 || gy >= gridRows) return;
 
             const existingNode = getTowerAt(gx, gy);
 
@@ -1168,7 +1300,7 @@
                     dataCores -= def.cost;
                     towers.push(new Tower(gx, gy, selectedTowerType));
                     SoundEngine.playBuild();
-                    createParticles(offsetX + (gx + 0.5) * cellSize, offsetY + (gy + 0.5) * cellSize, def.color, 12);
+                    createParticles(offsetX + (gx + 0.5) * cellW, offsetY + (gy + 0.5) * cellH, def.color, 12);
                     selectedNodeInstance = null;
                     hideNodeModal();
                 }
@@ -1378,14 +1510,14 @@
 
             for (let c = 0; c <= gridCols; c++) {
                 ctx.beginPath();
-                ctx.moveTo(offsetX + c * cellSize, offsetY);
-                ctx.lineTo(offsetX + c * cellSize, offsetY + gridRows * cellSize);
+                ctx.moveTo(offsetX + c * cellW, offsetY);
+                ctx.lineTo(offsetX + c * cellW, offsetY + gridRows * cellH);
                 ctx.stroke();
             }
             for (let r = 0; r <= gridRows; r++) {
                 ctx.beginPath();
-                ctx.moveTo(offsetX, offsetY + r * cellSize);
-                ctx.lineTo(offsetX + gridCols * cellSize, offsetY + r * cellSize);
+                ctx.moveTo(offsetX, offsetY + r * cellH);
+                ctx.lineTo(offsetX + gridCols * cellW, offsetY + r * cellH);
                 ctx.stroke();
             }
 
@@ -1425,8 +1557,8 @@
 
             const gx = mouse.gridX;
             const gy = mouse.gridY;
-            const px = offsetX + gx * cellSize;
-            const py = offsetY + gy * cellSize;
+            const px = offsetX + gx * cellW;
+            const py = offsetY + gy * cellH;
 
             ctx.save();
             const tower = getTowerAt(gx, gy);
@@ -1446,19 +1578,19 @@
 
                 ctx.strokeStyle = canAfford ? '#00f3ff' : '#ff0055';
                 ctx.fillStyle = canAfford ? 'rgba(0, 243, 255, 0.15)' : 'rgba(255, 0, 85, 0.15)';
-                ctx.fillRect(px, py, cellSize, cellSize);
-                ctx.strokeRect(px, py, cellSize, cellSize);
+                ctx.fillRect(px, py, cellW, cellH);
+                ctx.strokeRect(px, py, cellW, cellH);
 
                 // Preview Range Circle
                 ctx.beginPath();
-                ctx.arc(px + cellSize / 2, py + cellSize / 2, def.range, 0, Math.PI * 2);
+                ctx.arc(px + cellW / 2, py + cellH / 2, def.range, 0, Math.PI * 2);
                 ctx.stroke();
             } else {
                 // Invalid Placement (Path)
                 ctx.strokeStyle = '#ff0055';
                 ctx.fillStyle = 'rgba(255, 0, 85, 0.2)';
-                ctx.fillRect(px, py, cellSize, cellSize);
-                ctx.strokeRect(px, py, cellSize, cellSize);
+                ctx.fillRect(px, py, cellW, cellH);
+                ctx.strokeRect(px, py, cellW, cellH);
             }
 
             ctx.restore();
