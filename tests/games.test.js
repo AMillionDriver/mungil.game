@@ -48,4 +48,15 @@ describe('Project Integrity & Structure', () => {
     const uniqueGames = new Set(games);
     expect(uniqueGames.size).toBe(games.length);
   });
+
+  it('should have a valid semantic version in package.json', () => {
+    const pkgPath = path.resolve(process.cwd(), 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+
+    // Semantic Versioning regex: MAJOR.MINOR.PATCH(-PRERELEASE)?(+BUILD)?
+    const semverRegex =
+      /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+
+    expect(pkg.version).toMatch(semverRegex);
+  });
 });

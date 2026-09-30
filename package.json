@@ -10,7 +10,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "release": "bumpp"
   },
   "keywords": [
     "mini-game",
@@ -21,6 +22,7 @@
   "author": "Nanang Nurmansah",
   "license": "MIT",
   "devDependencies": {
+    "bumpp": "^12.3.0",
     "eslint": "^8.57.1",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-config-prettier": "^10.1.8",
