@@ -1,155 +1,171 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mini Game Hub</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="styles/style.css">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles/style.css" />
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
-    
+
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-QZZTPHB34J"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
+      function gtag() {
+        dataLayer.push(arguments);
+      }
       gtag('js', new Date());
       gtag('config', 'G-QZZTPHB34J');
     </script>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#667eea">
-    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-    
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#667eea" />
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
+
     <!-- Open Graph / Social Sharing -->
-    <meta property="og:title" content="Mini Game Hub">
-    <meta property="og:description" content="100+ browser games — no install needed">
-    <meta property="og:image" content="https://game.mungil.my.id/og-preview.png">
-    <meta property="og:url" content="https://game.mungil.my.id">
-    <meta property="og:type" content="website">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Mini Game Hub">
-    <meta name="twitter:description" content="100+ browser games — no install needed">
-    <meta name="twitter:image" content="https://game.mungil.my.id/og-preview.png">
-</head>
-<body>
+    <meta property="og:title" content="Mini Game Hub" />
+    <meta property="og:description" content="100+ browser games — no install needed" />
+    <meta property="og:image" content="https://game.mungil.my.id/og-preview.png" />
+    <meta property="og:url" content="https://game.mungil.my.id" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Mini Game Hub" />
+    <meta name="twitter:description" content="100+ browser games — no install needed" />
+    <meta name="twitter:image" content="https://game.mungil.my.id/og-preview.png" />
+  </head>
+  <body>
     <header>
-        <h1>Mini Game Hub</h1>
-        <div class="header-controls">
-            <div class="search-container">
-                <input type="text" id="searchInput" placeholder="Search games...">
-                <div id="searchSuggestions" class="search-suggestions" hidden></div>
-            </div>
-            <button id="darkModeToggle" class="mode-toggle" title="Toggle dark mode">🌙</button>
+      <h1>Mini Game Hub</h1>
+      <div class="header-controls">
+        <div class="search-container">
+          <input type="text" id="searchInput" placeholder="Search games..." />
+          <div id="searchSuggestions" class="search-suggestions" hidden></div>
         </div>
-        <div class="filter-section">
-            <div class="filter-chips">
-                <button class="filter-chip active" data-filter="all">All</button>
-                <button class="filter-chip" data-filter="action">Action</button>
-                <button class="filter-chip" data-filter="defense">Defense</button>
-                <button class="filter-chip" data-filter="puzzle">Puzzle</button>
-                <button class="filter-chip" data-filter="arcade">Arcade</button>
-                <button class="filter-chip" data-filter="retro">Retro</button>
-            </div>
-            <div class="sort-container">
-                <label for="sortSelect">Sort by:</label>
-                <select id="sortSelect">
-                    <option value="newest">Newest</option>
-                    <option value="popular">Popular</option>
-                    <option value="az">A-Z</option>
-                </select>
-            </div>
+        <button id="darkModeToggle" class="mode-toggle" title="Toggle dark mode">🌙</button>
+      </div>
+      <div class="filter-section">
+        <div class="filter-chips">
+          <button class="filter-chip active" data-filter="all">All</button>
+          <button class="filter-chip" data-filter="action">Action</button>
+          <button class="filter-chip" data-filter="defense">Defense</button>
+          <button class="filter-chip" data-filter="puzzle">Puzzle</button>
+          <button class="filter-chip" data-filter="arcade">Arcade</button>
+          <button class="filter-chip" data-filter="retro">Retro</button>
         </div>
+        <div class="sort-container">
+          <label for="sortSelect">Sort by:</label>
+          <select id="sortSelect">
+            <option value="newest">Newest</option>
+            <option value="popular">Popular</option>
+            <option value="az">A-Z</option>
+          </select>
+        </div>
+      </div>
     </header>
 
     <main>
-        <!-- Loading skeleton -->
-        <div class="loading-skeleton" id="loadingSkeleton">
-            <div class="skeleton-game"></div>
-            <div class="skeleton-game"></div>
-            <div class="skeleton-game"></div>
+      <!-- Loading skeleton -->
+      <div class="loading-skeleton" id="loadingSkeleton">
+        <div class="skeleton-game"></div>
+        <div class="skeleton-game"></div>
+        <div class="skeleton-game"></div>
+      </div>
+      <div class="games-container" id="gamesContainer">
+        <div class="game-card" data-game="Neon Cyber Survivor">
+          <div class="badge new">NEW</div>
+          <img
+            src="assets/thumbs/neon-cyber-survivor.png"
+            alt="Neon Cyber Survivor"
+            class="game-thumbnail"
+          />
+          <div class="game-tags">
+            <span class="tag action">Action</span>
+            <span class="tag cyberpunk">Cyberpunk</span>
+            <span class="tag roguelike">Roguelike</span>
+          </div>
+          <h2>Neon Cyber Survivor</h2>
+          <p>Survive in a cyberpunk world with neon visuals and fast-paced gameplay.</p>
+          <a href="./game/neon_cyber_survivor.html" class="play-button">Play Now</a>
         </div>
-        <div class="games-container" id="gamesContainer">
-            <div class="game-card" data-game="Neon Cyber Survivor">
-                <div class="badge new">NEW</div>
-                <img src="assets/thumbs/neon-cyber-survivor.png" alt="Neon Cyber Survivor" class="game-thumbnail">
-                <div class="game-tags">
-                    <span class="tag action">Action</span>
-                    <span class="tag cyberpunk">Cyberpunk</span>
-                    <span class="tag roguelike">Roguelike</span>
-                </div>
-                <h2>Neon Cyber Survivor</h2>
-                <p>Survive in a cyberpunk world with neon visuals and fast-paced gameplay.</p>
-                <a href="./game/neon_cyber_survivor.html" class="play-button">Play Now</a>
-            </div>
-            <div class="game-card" data-game="Neon Mainframe Defense">
-                <div class="badge hot">🔥 HOT</div>
-                <img src="assets/thumbs/neon-mainframe-defense.png" alt="Neon Mainframe Defense" class="game-thumbnail">
-                <div class="game-tags">
-                    <span class="tag defense">Defense</span>
-                    <span class="tag tower">Tower</span>
-                    <span class="tag strategy">Strategy</span>
-                </div>
-                <h2>Neon Mainframe Defense</h2>
-                <p>Defend the mainframe from cyber threats in this strategic defense game.</p>
-                <a href="./game/neon_mainframe_defense.html" class="play-button">Play Now</a>
-            </div>
-            <div class="game-card" data-game="Neon Protocol: Cyber Rebellion">
-                <img src="assets/thumbs/neon-protocol-cyber-rebellion.png" alt="Neon Protocol: Cyber Rebellion" class="game-thumbnail">
-                <div class="game-tags">
-                    <span class="tag action">Action</span>
-                    <span class="tag cyberpunk">Cyberpunk</span>
-                    <span class="tag adventure">Adventure</span>
-                </div>
-                <h2>Neon Protocol: Cyber Rebellion</h2>
-                <p>Join the rebellion in this action-packed cyberpunk adventure.</p>
-                <a href="./game/neon_protocol_cyber_rebellion.html" class="play-button">Play Now</a>
-            </div>
+        <div class="game-card" data-game="Neon Mainframe Defense">
+          <div class="badge hot">🔥 HOT</div>
+          <img
+            src="assets/thumbs/neon-mainframe-defense.png"
+            alt="Neon Mainframe Defense"
+            class="game-thumbnail"
+          />
+          <div class="game-tags">
+            <span class="tag defense">Defense</span>
+            <span class="tag tower">Tower</span>
+            <span class="tag strategy">Strategy</span>
+          </div>
+          <h2>Neon Mainframe Defense</h2>
+          <p>Defend the mainframe from cyber threats in this strategic defense game.</p>
+          <a href="./game/neon_mainframe_defense.html" class="play-button">Play Now</a>
         </div>
+        <div class="game-card" data-game="Neon Protocol: Cyber Rebellion">
+          <img
+            src="assets/thumbs/neon-protocol-cyber-rebellion.png"
+            alt="Neon Protocol: Cyber Rebellion"
+            class="game-thumbnail"
+          />
+          <div class="game-tags">
+            <span class="tag action">Action</span>
+            <span class="tag cyberpunk">Cyberpunk</span>
+            <span class="tag adventure">Adventure</span>
+          </div>
+          <h2>Neon Protocol: Cyber Rebellion</h2>
+          <p>Join the rebellion in this action-packed cyberpunk adventure.</p>
+          <a href="./game/neon_protocol_cyber_rebellion.html" class="play-button">Play Now</a>
+        </div>
+      </div>
 
-        <!-- JSk13Games Collection -->
-        <h3>JSk13Games Collection (100+ games available)</h3>
-        <div class="games-container" id="jskGamesContainer">
-            <!-- Games will be loaded dynamically -->
-        </div>
-        <div class="load-more-container">
-            <button id="loadMoreBtn" class="play-button">Load More Games</button>
-        </div>
+      <!-- JSk13Games Collection -->
+      <h3>JSk13Games Collection (100+ games available)</h3>
+      <div class="games-container" id="jskGamesContainer">
+        <!-- Games will be loaded dynamically -->
+      </div>
+      <div class="load-more-container">
+        <button id="loadMoreBtn" class="play-button">Load More Games</button>
+      </div>
 
-        <section class="about-section">
-            <h3>Tentang Mini Game Hub</h3>
-            <p>Kumpulan game browser-based yang bisa langsung dimainkan tanpa install.</p>
-            <p>Semua game dibuat / dikurasi oleh Nanang Nurmansah.</p>
-        </section>
+      <section class="about-section">
+        <h3>Tentang Mini Game Hub</h3>
+        <p>Kumpulan game browser-based yang bisa langsung dimainkan tanpa install.</p>
+        <p>Semua game dibuat / dikurasi oleh Nanang Nurmansah.</p>
+      </section>
     </main>
 
     <!-- Loading overlay -->
     <div class="loading-overlay" id="loadingOverlay">
-        <div class="spinner"></div>
-        <p>Preparing game...</p>
+      <div class="spinner"></div>
+      <p>Preparing game...</p>
     </div>
 
     <footer>
-        <div class="footer-links">
-            <a href="./page/privacy.html">Privacy Policy</a>
-            <a href="mailto:support@mungil.my.id">Contact</a>
-            <a href="https://github.com/AMillionDriver/mungil.game" target="_blank" rel="noopener">GitHub</a>
-        </div>
-        <p>&copy; 2026 Nanang Nurmansah — Mini Game Hub</p>
-        <p style="font-size: 0.75rem; opacity: 0.7; margin-top: 8px;">
-            Menggunakan Google Analytics · 
-            <a href="./page/privacy.html" style="color: inherit;">Pelajari</a>
-        </p>
+      <div class="footer-links">
+        <a href="./page/privacy.html">Privacy Policy</a>
+        <a href="mailto:support@mungil.my.id">Contact</a>
+        <a href="https://github.com/AMillionDriver/mungil.game" target="_blank" rel="noopener"
+          >GitHub</a
+        >
+      </div>
+      <p>&copy; 2026 Nanang Nurmansah — Mini Game Hub</p>
+      <p style="font-size: 0.75rem; opacity: 0.7; margin-top: 8px">
+        Menggunakan Google Analytics ·
+        <a href="./page/privacy.html" style="color: inherit">Pelajari</a>
+      </p>
     </footer>
 
     <script src="scripts/games.js"></script>
     <script src="scripts/script.js"></script>
 
     <div id="cookieBanner" class="cookie-banner" hidden>
-        <div class="cookie-content">
-            <span>🍪 Kami menggunakan cookies untuk analytics. Dengan lanjut, kamu setuju.</span>
-            <button id="cookieAccept">OK</button>
-            <a href="./privacy.html">Detail</a>
-        </div>
+      <div class="cookie-content">
+        <span>🍪 Kami menggunakan cookies untuk analytics. Dengan lanjut, kamu setuju.</span>
+        <button id="cookieAccept">OK</button>
+        <a href="./privacy.html">Detail</a>
+      </div>
     </div>
-</body>
+  </body>
 </html>

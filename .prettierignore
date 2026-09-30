@@ -1,0 +1,22 @@
+# Dependencies & package files
+node_modules/
+package-lock.json
+
+# Build & generated assets
+screenshotter/
+assets/
+dist/
+coverage/
+
+# External third-party game bundles (e.g. js13k games)
+game/
+page/
+
+# Target & logs
+target_update.md
+*.log
+
+# Git & OS metadata
+.git/
+.DS_Store
+Thumbs.db

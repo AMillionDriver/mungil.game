@@ -1,0 +1,23 @@
+{
+  "name": "game-screenshots",
+  "version": "1.0.0",
+  "description": "Auto-generate game thumbnails using Puppeteer",
+  "main": "screenshot.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "screenshot": "node screenshot.js"
+  },
+  "keywords": [
+    "game",
+    "screenshot",
+    "thumbnail",
+    "puppeteer"
+  ],
+  "author": "Nanang Nurmansyah",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^21.0.0",
+    "puppeteer-core": "^25.11.0"
+  },
+  "type": "commonjs"
+}

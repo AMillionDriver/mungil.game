@@ -1,0 +1,31 @@
+{
+  "name": "mini-game-hub",
+  "version": "1.0.0",
+  "description": "Koleksi Web Mini Game Retro & Cyberpunk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "mini-game",
+    "html5-game",
+    "arcade",
+    "cyberpunk"
+  ],
+  "author": "Nanang Nurmansah",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "prettier": "^3.9.9",
+    "vitest": "^5.0.2"
+  }
+}

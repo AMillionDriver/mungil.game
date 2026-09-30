@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Screenshotter tool
+screenshotter/
+
+# Static assets & third-party libs
+assets/
+dist/
+coverage/
+
+# HTML game files (contain inline scripts)
+game/
+page/
+
+# Config files
+package-lock.json

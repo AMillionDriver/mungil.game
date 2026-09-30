@@ -43,11 +43,11 @@ The project uses lightweight web technologies with a **mobile-first** approach a
 
 These games were developed specifically for Mini Game Hub:
 
-| Game | Genre | Description |
-|------|-------|-------------|
-| **Neon Cyber Survivor** | Action, Roguelike | Survive endless waves of cyber drones in a neon cyberpunk environment |
-| **Neon Mainframe Defense** | Tower Defense, Strategy | Defend a futuristic mainframe against waves of digital threats |
-| **Neon Protocol: Cyber Rebellion** | Action, Story | A cyberpunk experience combining visual novel elements, hack & slash combat, and hacking puzzles |
+| Game                               | Genre                   | Description                                                                                      |
+| ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| **Neon Cyber Survivor**            | Action, Roguelike       | Survive endless waves of cyber drones in a neon cyberpunk environment                            |
+| **Neon Mainframe Defense**         | Tower Defense, Strategy | Defend a futuristic mainframe against waves of digital threats                                   |
+| **Neon Protocol: Cyber Rebellion** | Action, Story           | A cyberpunk experience combining visual novel elements, hack & slash combat, and hacking puzzles |
 
 ### Neon Protocol: Cyber Rebellion
 
