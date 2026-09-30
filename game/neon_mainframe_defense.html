@@ -250,6 +250,26 @@
         </div>
     </div>
 
+    <!-- Two-Step Placement Confirmation Bubble (Mobile & Touch Friendly) -->
+    <div id="placement-bubble" class="absolute z-30 glass-panel p-2.5 rounded-xl border border-cyan-400/60 shadow-[0_0_20px_rgba(0,243,255,0.4)] hidden transition-all duration-150 pointer-events-auto flex flex-col items-center gap-1.5 w-44" style="left: -9999px; top: -9999px;">
+        <div class="flex items-center gap-2 w-full">
+            <span id="placement-icon" class="text-xl">🔹</span>
+            <div class="leading-tight flex-1">
+                <div id="placement-name" class="font-orbitron font-bold text-[11px] text-white truncate">Pulse Blaster</div>
+                <div id="placement-cost" class="font-orbitron text-[10px] text-cyan-300 font-semibold">100 💎</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-1.5 w-full mt-0.5">
+            <button id="btn-confirm-placement" class="flex-1 py-1 px-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-125 text-white font-orbitron font-bold text-[10px] tracking-wider transition active:scale-95 shadow-[0_0_10px_rgba(0,243,255,0.4)] flex items-center justify-center gap-1">
+                <span>✓ PASANG</span>
+            </button>
+            <button id="btn-cancel-placement" class="py-1 px-2 rounded-lg bg-gray-800/90 hover:bg-gray-700 border border-gray-600 text-gray-300 font-orbitron text-[10px] active:scale-95 transition">
+                ✕
+            </button>
+        </div>
+        <div class="text-[8px] font-orbitron text-gray-400 text-center tracking-tight">Ketuk sel lagi untuk pasang</div>
+    </div>
+
     <!-- Node Upgrade / Info Modal -->
     <div id="node-modal" class="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 glass-panel p-4 rounded-2xl w-80 border border-cyan-500/50 hidden shadow-[0_0_30px_rgba(0,243,255,0.2)]">
         <div class="flex justify-between items-start mb-2">
@@ -340,10 +360,34 @@
                 if (!this.ctx) {
                     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
                 }
+                this.resumeCtx();
+            },
+            resumeCtx() {
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playSelect() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    this.resumeCtx();
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(1050, this.ctx.currentTime + 0.05);
+                    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.05);
+                } catch (e) {}
             },
             playShoot(type) {
                 if (this.muted || !this.ctx) return;
                 try {
+                    this.resumeCtx();
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
                     osc.connect(gain);
@@ -379,6 +423,7 @@
             playExplosion() {
                 if (this.muted || !this.ctx) return;
                 try {
+                    this.resumeCtx();
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
                     osc.type = 'sawtooth';
@@ -395,6 +440,7 @@
             playBuild() {
                 if (this.muted || !this.ctx) return;
                 try {
+                    this.resumeCtx();
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
                     osc.type = 'sine';
@@ -411,6 +457,7 @@
             playEMP() {
                 if (this.muted || !this.ctx) return;
                 try {
+                    this.resumeCtx();
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
                     osc.type = 'sawtooth';
@@ -425,6 +472,14 @@
                 } catch (e) {}
             }
         };
+
+        function triggerHaptic(pattern = 15) {
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                try {
+                    navigator.vibrate(pattern);
+                } catch (e) {}
+            }
+        }
 
         // ═══════════════════════════════════════════════════════════════════
         // DYNAMIC DIFFICULTY ADJUSTMENT (DDA) — versi Tower Defense
@@ -611,6 +666,7 @@
 
         let selectedTowerType = 'pulse';
         let selectedNodeInstance = null;
+        let selectedPlacement = null; // { gx, gy } for two-step placement preview
 
         let towers = [];
         let enemies = [];
@@ -648,6 +704,10 @@
                 x: offsetX + (pt.x + 0.5) * cellW,
                 y: offsetY + (pt.y + 0.5) * cellH
             }));
+
+            if (typeof updatePlacementBubblePos === 'function') {
+                updatePlacementBubblePos();
+            }
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
@@ -1248,10 +1308,110 @@
                     selectedNodeInstance = null;
                     hideNodeModal();
                     setupTowerShopUI();
+                    SoundEngine.playSelect();
+                    triggerHaptic(10);
+                    if (selectedPlacement) {
+                        showPlacementBubble(selectedPlacement.gx, selectedPlacement.gy);
+                    }
                 };
                 container.appendChild(btn);
             });
         }
+
+        function showPlacementBubble(gx, gy) {
+            selectedPlacement = { gx, gy };
+            const bubble = document.getElementById('placement-bubble');
+            if (!bubble) return;
+
+            const def = TOWER_TYPES[selectedTowerType];
+            const canAfford = dataCores >= def.cost;
+
+            document.getElementById('placement-icon').innerText = def.icon;
+            document.getElementById('placement-name').innerText = def.name;
+            const costEl = document.getElementById('placement-cost');
+            costEl.innerText = `${def.cost} 💎`;
+            costEl.className = `font-orbitron text-[10px] font-bold ${canAfford ? 'text-cyan-300' : 'text-red-400'}`;
+
+            const btnConfirm = document.getElementById('btn-confirm-placement');
+            if (canAfford) {
+                btnConfirm.disabled = false;
+                btnConfirm.className = 'flex-1 py-1 px-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-125 text-white font-orbitron font-bold text-[10px] tracking-wider transition active:scale-95 shadow-[0_0_10px_rgba(0,243,255,0.4)] flex items-center justify-center gap-1 cursor-pointer';
+                btnConfirm.innerHTML = '<span>✓ PASANG</span>';
+            } else {
+                btnConfirm.disabled = true;
+                btnConfirm.className = 'flex-1 py-1 px-2 rounded-lg bg-gray-800 text-gray-500 font-orbitron font-bold text-[10px] tracking-wider transition flex items-center justify-center gap-1 cursor-not-allowed';
+                btnConfirm.innerHTML = '<span>KURANG 💎</span>';
+            }
+
+            updatePlacementBubblePos();
+            bubble.classList.remove('hidden');
+        }
+
+        function updatePlacementBubblePos() {
+            if (!selectedPlacement) return;
+            const bubble = document.getElementById('placement-bubble');
+            if (!bubble || bubble.classList.contains('hidden')) return;
+
+            const { gx, gy } = selectedPlacement;
+            const cellCenterX = offsetX + (gx + 0.5) * cellW;
+            const cellTopY = offsetY + gy * cellH;
+
+            const bubbleW = 176;
+            const clampedX = Math.max(bubbleW / 2 + 10, Math.min(canvas.width - bubbleW / 2 - 10, cellCenterX));
+
+            if (cellTopY < 85) {
+                bubble.style.left = `${clampedX}px`;
+                bubble.style.top = `${offsetY + (gy + 1) * cellH + 8}px`;
+                bubble.style.transform = 'translate(-50%, 0)';
+            } else {
+                bubble.style.left = `${clampedX}px`;
+                bubble.style.top = `${cellTopY - 8}px`;
+                bubble.style.transform = 'translate(-50%, -100%)';
+            }
+        }
+
+        function hidePlacementBubble() {
+            selectedPlacement = null;
+            const bubble = document.getElementById('placement-bubble');
+            if (bubble) bubble.classList.add('hidden');
+        }
+
+        function confirmPlacement() {
+            if (!selectedPlacement || gameState !== 'PLAYING') return;
+            const { gx, gy } = selectedPlacement;
+
+            if (isPathCell(gx, gy) || getTowerAt(gx, gy)) {
+                hidePlacementBubble();
+                return;
+            }
+
+            const def = TOWER_TYPES[selectedTowerType];
+            if (dataCores >= def.cost) {
+                dataCores -= def.cost;
+                towers.push(new Tower(gx, gy, selectedTowerType));
+                SoundEngine.playBuild();
+                triggerHaptic([25, 30, 25]);
+                createParticles(offsetX + (gx + 0.5) * cellW, offsetY + (gy + 0.5) * cellH, def.color, 14);
+                spawnFloatingText(offsetX + (gx + 0.5) * cellW, offsetY + gy * cellH - 12, `-${def.cost} 💎`, '#00f3ff', 16);
+                hidePlacementBubble();
+                updateHUD();
+            } else {
+                triggerHaptic(50);
+                SoundEngine.playShoot('laser');
+                spawnFloatingText(offsetX + (gx + 0.5) * cellW, offsetY + gy * cellH - 12, 'DATA CORES KURANG!', '#ff0055', 16);
+            }
+        }
+
+        document.getElementById('btn-confirm-placement').onclick = (e) => {
+            e.stopPropagation();
+            confirmPlacement();
+        };
+
+        document.getElementById('btn-cancel-placement').onclick = (e) => {
+            e.stopPropagation();
+            hidePlacementBubble();
+            triggerHaptic(10);
+        };
 
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
@@ -1273,36 +1433,49 @@
         canvas.addEventListener('click', (e) => {
             if (gameState !== 'PLAYING') return;
 
-            // Hitung posisi LANGSUNG dari event klik/tap ini, jangan nyandar ke
-            // mouse.gridX/gridY (di-update terpisah oleh mousemove). Di HP,
-            // sentuhan jari itu touchstart->touchend->click TANPA fase hover
-            // yang reliable kayak mouse di desktop -- mouse.gridX/gridY bisa
-            // nyangkut dari interaksi sebelumnya, bukan dari tap yang barusan.
-            // Ini penyebab tower ke-deploy di posisi yang gak sesuai tempat
-            // jari nyentuh layar.
             const rect = canvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const clickY = e.clientY - rect.top;
             const gx = Math.floor((clickX - offsetX) / cellW);
             const gy = Math.floor((clickY - offsetY) / cellH);
 
-            if (gx < 0 || gx >= gridCols || gy < 0 || gy >= gridRows) return;
+            if (gx < 0 || gx >= gridCols || gy < 0 || gy >= gridRows) {
+                // Clicked outside grid, cancel preview and close modal
+                hidePlacementBubble();
+                hideNodeModal();
+                selectedNodeInstance = null;
+                return;
+            }
 
             const existingNode = getTowerAt(gx, gy);
 
             if (existingNode) {
+                // Tapped an existing tower -> open upgrade modal
+                hidePlacementBubble();
                 selectedNodeInstance = existingNode;
                 showNodeModal(existingNode);
-            } else if (!isPathCell(gx, gy)) {
-                // Try build new node
-                const def = TOWER_TYPES[selectedTowerType];
-                if (dataCores >= def.cost) {
-                    dataCores -= def.cost;
-                    towers.push(new Tower(gx, gy, selectedTowerType));
-                    SoundEngine.playBuild();
-                    createParticles(offsetX + (gx + 0.5) * cellW, offsetY + (gy + 0.5) * cellH, def.color, 12);
-                    selectedNodeInstance = null;
-                    hideNodeModal();
+                triggerHaptic(15);
+                SoundEngine.playSelect();
+            } else if (isPathCell(gx, gy)) {
+                // Tapped path tile (cannot build on virus route)
+                hidePlacementBubble();
+                hideNodeModal();
+                selectedNodeInstance = null;
+                triggerHaptic(30);
+                spawnFloatingText(offsetX + (gx + 0.5) * cellW, offsetY + (gy + 0.5) * cellH, 'JALUR VIRUS!', '#ff0055', 14);
+            } else {
+                // Valid empty tile -> Two-step placement!
+                hideNodeModal();
+                selectedNodeInstance = null;
+
+                if (selectedPlacement && selectedPlacement.gx === gx && selectedPlacement.gy === gy) {
+                    // Tap 2 on the exact same cell confirms build!
+                    confirmPlacement();
+                } else {
+                    // Tap 1 selects cell, shows preview range & confirmation bubble
+                    showPlacementBubble(gx, gy);
+                    triggerHaptic(12);
+                    SoundEngine.playSelect();
                 }
             }
         });
@@ -1553,47 +1726,136 @@
         }
 
         function drawHoverHighlight() {
-            if (gameState !== 'PLAYING' || !mouse.isHoveringGrid) return;
+            if (gameState !== 'PLAYING') return;
 
-            const gx = mouse.gridX;
-            const gy = mouse.gridY;
-            const px = offsetX + gx * cellW;
-            const py = offsetY + gy * cellH;
-
-            ctx.save();
-            const tower = getTowerAt(gx, gy);
-
-            if (tower) {
-                // Show Range Circle for existing node
-                ctx.strokeStyle = 'rgba(0, 243, 255, 0.5)';
+            // 1. Draw range of selected existing node
+            if (selectedNodeInstance) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(0, 243, 255, 0.7)';
                 ctx.fillStyle = 'rgba(0, 243, 255, 0.08)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
                 ctx.beginPath();
-                ctx.arc(tower.x, tower.y, tower.range, 0, Math.PI * 2);
+                ctx.arc(selectedNodeInstance.x, selectedNodeInstance.y, selectedNodeInstance.range, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
-            } else if (!isPathCell(gx, gy)) {
-                // Show Build Preview
+                ctx.setLineDash([]);
+
+                // Bounding box around tower cell
+                const px = offsetX + selectedNodeInstance.gridX * cellW;
+                const py = offsetY + selectedNodeInstance.gridY * cellH;
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(px + 2, py + 2, cellW - 4, cellH - 4);
+                ctx.restore();
+            }
+
+            // 2. Draw active placement preview (Two-Step Tap on Mobile / Desktop)
+            if (selectedPlacement) {
+                const { gx, gy } = selectedPlacement;
+                const px = offsetX + gx * cellW;
+                const py = offsetY + gy * cellH;
+                const cx = px + cellW / 2;
+                const cy = py + cellH / 2;
+
                 const def = TOWER_TYPES[selectedTowerType];
                 const canAfford = dataCores >= def.cost;
 
-                ctx.strokeStyle = canAfford ? '#00f3ff' : '#ff0055';
-                ctx.fillStyle = canAfford ? 'rgba(0, 243, 255, 0.15)' : 'rgba(255, 0, 85, 0.15)';
-                ctx.fillRect(px, py, cellW, cellH);
-                ctx.strokeRect(px, py, cellW, cellH);
+                ctx.save();
+                const pulse = 0.6 + Math.sin(Date.now() / 180) * 0.4;
+                const color = canAfford ? '#00f3ff' : '#ff0055';
 
-                // Preview Range Circle
-                ctx.beginPath();
-                ctx.arc(px + cellW / 2, py + cellH / 2, def.range, 0, Math.PI * 2);
-                ctx.stroke();
-            } else {
-                // Invalid Placement (Path)
-                ctx.strokeStyle = '#ff0055';
-                ctx.fillStyle = 'rgba(255, 0, 85, 0.2)';
+                // Grid cell glow & border
+                ctx.fillStyle = canAfford ? `rgba(0, 243, 255, ${0.12 + pulse * 0.1})` : `rgba(255, 0, 85, ${0.15 + pulse * 0.1})`;
                 ctx.fillRect(px, py, cellW, cellH);
-                ctx.strokeRect(px, py, cellW, cellH);
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2.5;
+                ctx.strokeRect(px + 1, py + 1, cellW - 2, cellH - 2);
+
+                // Range circle with animated dashed ring
+                ctx.strokeStyle = canAfford ? 'rgba(0, 243, 255, 0.6)' : 'rgba(255, 0, 85, 0.6)';
+                ctx.fillStyle = canAfford ? 'rgba(0, 243, 255, 0.06)' : 'rgba(255, 0, 85, 0.06)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([6, 6]);
+                ctx.lineDashOffset = -Date.now() / 40;
+                ctx.beginPath();
+                ctx.arc(cx, cy, def.range, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Ghost Hologram Tower
+                ctx.translate(cx, cy);
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = color;
+
+                // Base node outline
+                ctx.fillStyle = 'rgba(10, 15, 36, 0.85)';
+                ctx.beginPath();
+                ctx.arc(0, 0, cellSize * 0.38, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Turret head pointing slightly
+                const previewAngle = Date.now() / 1200;
+                ctx.rotate(previewAngle);
+                ctx.fillStyle = color;
+                ctx.fillRect(0, -2, cellSize * 0.35, 4);
+
+                ctx.beginPath();
+                ctx.arc(0, 0, cellSize * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(0, 0, cellSize * 0.08, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
             }
 
-            ctx.restore();
+            // 3. Desktop Hover state (only if hovering a cell different from selectedPlacement)
+            if (mouse.isHoveringGrid && (!selectedPlacement || mouse.gridX !== selectedPlacement.gx || mouse.gridY !== selectedPlacement.gy)) {
+                const gx = mouse.gridX;
+                const gy = mouse.gridY;
+                const px = offsetX + gx * cellW;
+                const py = offsetY + gy * cellH;
+
+                ctx.save();
+                const tower = getTowerAt(gx, gy);
+
+                if (tower) {
+                    ctx.strokeStyle = 'rgba(0, 243, 255, 0.4)';
+                    ctx.fillStyle = 'rgba(0, 243, 255, 0.05)';
+                    ctx.beginPath();
+                    ctx.arc(tower.x, tower.y, tower.range, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (!isPathCell(gx, gy)) {
+                    const def = TOWER_TYPES[selectedTowerType];
+                    const canAfford = dataCores >= def.cost;
+
+                    ctx.strokeStyle = canAfford ? 'rgba(0, 243, 255, 0.5)' : 'rgba(255, 0, 85, 0.5)';
+                    ctx.fillStyle = canAfford ? 'rgba(0, 243, 255, 0.08)' : 'rgba(255, 0, 85, 0.08)';
+                    ctx.fillRect(px, py, cellW, cellH);
+                    ctx.strokeRect(px, py, cellW, cellH);
+
+                    ctx.beginPath();
+                    ctx.arc(px + cellW / 2, py + cellH / 2, def.range, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else {
+                    ctx.strokeStyle = '#ff0055';
+                    ctx.fillStyle = 'rgba(255, 0, 85, 0.15)';
+                    ctx.fillRect(px, py, cellW, cellH);
+                    ctx.strokeRect(px, py, cellW, cellH);
+                }
+
+                ctx.restore();
+            }
         }
 
         function updateHUD() {
@@ -1621,6 +1883,10 @@
             projectiles = [];
             particles = [];
             floatingTexts = [];
+            selectedPlacement = null;
+            selectedNodeInstance = null;
+            hidePlacementBubble();
+            hideNodeModal();
 
             // Reset DDA state
             DDAController.difficultyScale = 1.0;
@@ -1655,6 +1921,9 @@
             gameState = 'GAMEOVER';
             document.getElementById('hud-top').classList.add('hidden');
             document.getElementById('hud-bottom').classList.add('hidden');
+            selectedPlacement = null;
+            selectedNodeInstance = null;
+            hidePlacementBubble();
             hideNodeModal();
 
             const title = document.getElementById('gameover-title');
