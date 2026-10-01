@@ -65,6 +65,12 @@
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
         /* ── Touch Optimization & Safe Areas ── */
+        .hidden {
+            display: none !important;
+        }
+        #boss-bar-container.hidden {
+            display: none !important;
+        }
         * {
             -webkit-tap-highlight-color: transparent;
         }
@@ -177,23 +183,51 @@
             }
         }
 
-        /* Portrait Mobile Mode */
+        /* Portrait Mobile Mode (Lifted cluster & visible dialogue on Oppo/Android) */
         @media (max-width: 500px) and (orientation: portrait) {
             #touch-action-cluster {
-                bottom: max(32px, calc(env(safe-area-inset-bottom, 0px) + 32px)) !important;
-                right: max(14px, calc(env(safe-area-inset-right, 0px) + 14px)) !important;
+                bottom: max(92px, calc(env(safe-area-inset-bottom, 0px) + 85px)) !important;
+                right: max(16px, calc(env(safe-area-inset-right, 0px) + 16px)) !important;
+                width: 142px !important;
+                height: 142px !important;
+            }
+            #btn-attack-touch {
+                bottom: 0 !important;
+                right: 0 !important;
+                width: 78px !important;
+                height: 78px !important;
+            }
+            #btn-dash-touch {
+                bottom: 60px !important;
+                right: 70px !important;
+                width: 54px !important;
+                height: 54px !important;
             }
             #menu-screen .glass-panel, #gameover-screen .glass-panel, #revive-overlay .glass-panel, #hacking-overlay .glass-panel {
-                max-height: 92dvh !important;
+                max-height: 90dvh !important;
                 overflow-y: auto !important;
-                padding: 18px !important;
-                gap: 12px !important;
+                padding: 16px !important;
+                gap: 10px !important;
             }
             #dialogue-overlay {
-                bottom: max(16px, env(safe-area-inset-bottom, 16px)) !important;
+                bottom: max(38px, calc(env(safe-area-inset-bottom, 0px) + 36px)) !important;
+                padding-left: 12px !important;
+                padding-right: 12px !important;
             }
             #dialogue-overlay .glass-panel {
+                max-height: 82dvh !important;
+                overflow-y: auto !important;
                 padding: 14px !important;
+            }
+            #dialogue-choices {
+                gap: 8px !important;
+                margin-top: 10px !important;
+            }
+            #dialogue-choices button {
+                padding: 9px 12px !important;
+                font-size: 11px !important;
+                line-height: 1.3 !important;
+                border-radius: 12px !important;
             }
         }
     </style>
@@ -586,6 +620,54 @@
         // FLOATING TEXT SYSTEM
         // ═══════════════════════════════════════════════════════════
         let floatingTexts = [];
+
+        class SlashEffect {
+            constructor(x, y, angle, range = 78) {
+                this.x = x;
+                this.y = y;
+                this.angle = angle;
+                this.range = range;
+                this.maxLife = 0.18; // 180ms duration
+                this.life = this.maxLife;
+                this.markedForDeletion = false;
+            }
+            update(dt) {
+                this.life -= dt;
+                if (this.life <= 0) this.markedForDeletion = true;
+            }
+            draw() {
+                const progress = 1 - (this.life / this.maxLife);
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                const alpha = Math.sin((1 - progress) * Math.PI * 0.5);
+                ctx.globalAlpha = Math.max(0, Math.min(1, alpha * 1.6));
+
+                // Outer cyan energy wave
+                ctx.beginPath();
+                const sweepCenter = (progress - 0.5) * (Math.PI * 0.6);
+                const arcSpread = Math.PI * 0.58 * (0.85 + progress * 0.3);
+                ctx.arc(0, 0, this.range * (0.92 + progress * 0.16), sweepCenter - arcSpread / 2, sweepCenter + arcSpread / 2);
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = Math.max(2, 6.5 * (1 - progress * 0.55));
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#00f3ff';
+                ctx.stroke();
+
+                // Inner blazing white core arc
+                ctx.beginPath();
+                ctx.arc(0, 0, this.range * (0.95 + progress * 0.12), sweepCenter - arcSpread * 0.45, sweepCenter + arcSpread * 0.45);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2.8;
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#ffffff';
+                ctx.stroke();
+
+                ctx.restore();
+            }
+        }
+        let slashEffects = [];
 
         class FloatingText {
             constructor(x, y, text, color = '#00f3ff', size = 22) {
@@ -998,7 +1080,8 @@
                 this.attackRange = 75;
                 this.damage = 35;
                 this.lastAttack = 0;
-                this.attackCooldown = 220; // ms
+                this.attackCooldown = 165; // ms (fast responsive spam)
+                this.bufferedAttack = false;
 
                 // Dash Params
                 this.isDashing = false;
@@ -1014,6 +1097,7 @@
                 // Invulnerability after revive
                 this.invulnUntil = 0;
                 this.facingAngle = 0;
+                this.bufferedAttack = false;
             }
 
             reset() {
@@ -1044,90 +1128,118 @@
 
             attack() {
                 const now = Date.now();
-                if (now - this.lastAttack >= this.attackCooldown) {
-                    this.lastAttack = now;
-                    this.isAttacking = true;
-                    this.attackProgress = 0;
+                if (now - this.lastAttack < this.attackCooldown) {
+                    // Buffer attack if tapped near cooldown expiry
+                    if (now - this.lastAttack >= this.attackCooldown - 75) {
+                        this.bufferedAttack = true;
+                    }
+                    return;
+                }
+                this.lastAttack = now;
+                this.bufferedAttack = false;
+                this.isAttacking = true;
+                this.attackProgress = 0;
 
-                    // Calculate Aim Angle (Smart Auto-Target on Mobile)
-                    if (isTouchDevice) {
-                        if (joystick.active && (joystick.dx !== 0 || joystick.dy !== 0)) {
-                            this.attackAngle = Math.atan2(joystick.dy, joystick.dx);
-                            this.facingAngle = this.attackAngle;
-                        } else {
-                            let target = null;
-                            let minDist = 340;
-                            for (const e of enemies) {
-                                if (e.hp > 0) {
-                                    const d = Math.hypot(e.x - this.x, e.y - this.y);
-                                    if (d < minDist) {
-                                        minDist = d;
-                                        target = e;
-                                    }
+                // Smart Auto-Aim / Soft-Lock (Auto-aim tipis-tipis biar lengket)
+                if (isTouchDevice) {
+                    const hasAnalogMove = joystick.active && (joystick.dx !== 0 || joystick.dy !== 0);
+                    const analogAngle = hasAnalogMove ? Math.atan2(joystick.dy, joystick.dx) : this.facingAngle;
+                    
+                    let bestTargetAngle = null;
+                    let bestScore = -Infinity;
+
+                    // 1. Parry Priority: Incoming hostile bullets within 190px
+                    for (const b of bullets) {
+                        if (!b.isPlayerBullet) {
+                            const d = Math.hypot(b.x - this.x, b.y - this.y);
+                            if (d <= 190) {
+                                const angleToBullet = Math.atan2(b.y - this.y, b.x - this.x);
+                                const diff = Math.abs(normalizeAngle(angleToBullet - analogAngle));
+                                const score = 1000 - d - (diff * 70);
+                                if (score > bestScore) {
+                                    bestScore = score;
+                                    bestTargetAngle = angleToBullet;
                                 }
-                            }
-                            if (!target) {
-                                for (const b of bullets) {
-                                    if (!b.isPlayerBullet) {
-                                        const d = Math.hypot(b.x - this.x, b.y - this.y);
-                                        if (d < 180 && d < minDist) {
-                                            minDist = d;
-                                            target = b;
-                                        }
-                                    }
-                                }
-                            }
-                            if (target) {
-                                this.attackAngle = Math.atan2(target.y - this.y, target.x - this.x);
-                                this.facingAngle = this.attackAngle;
-                            } else if (this.facingAngle !== undefined) {
-                                this.attackAngle = this.facingAngle;
-                            } else {
-                                this.attackAngle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
                             }
                         }
+                    }
+
+                    // 2. Soft-Lock Enemy: Active enemies within 320px
+                    for (const e of enemies) {
+                        if (e.hp > 0) {
+                            const d = Math.hypot(e.x - this.x, e.y - this.y);
+                            if (d <= 320) {
+                                const angleToEnemy = Math.atan2(e.y - this.y, e.x - this.x);
+                                const diff = Math.abs(normalizeAngle(angleToEnemy - analogAngle));
+                                // Snap if close (<140px) or in generous forward cone (<1.3 rad ~ 75 deg)
+                                if (d < 140 || diff < 1.3) {
+                                    const score = 500 - d - (diff * 110);
+                                    if (score > bestScore) {
+                                        bestScore = score;
+                                        bestTargetAngle = angleToEnemy;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (bestTargetAngle !== null) {
+                        this.attackAngle = bestTargetAngle;
+                    } else if (hasAnalogMove) {
+                        this.attackAngle = analogAngle;
+                    } else if (this.facingAngle !== undefined) {
+                        this.attackAngle = this.facingAngle;
                     } else {
                         this.attackAngle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
                     }
-                    triggerHaptic(15);
-
-                    SoundEngine.playSlash();
-
-                    // Check Enemy Hits & Bullet Parries
-                    const arcStart = this.attackAngle - Math.PI / 3;
-                    const arcEnd = this.attackAngle + Math.PI / 3;
-
-                    // Deflect Bullets
-                    bullets.forEach(b => {
-                        const d = Math.hypot(b.x - this.x, b.y - this.y);
-                        if (d <= this.attackRange + 15 && !b.isPlayerBullet) {
-                            const bulletAngle = Math.atan2(b.y - this.y, b.x - this.x);
-                            if (Math.abs(normalizeAngle(bulletAngle - this.attackAngle)) < Math.PI / 1.6) {
-                                // Deflect back to enemy!
-                                b.isPlayerBullet = true;
-                                b.vx = Math.cos(this.attackAngle) * 12;
-                                b.vy = Math.sin(this.attackAngle) * 12;
-                                b.wasParried = true;
-                                SoundEngine.playParry();
-                                createParticles(b.x, b.y, '#ffb700', 10);
-                            }
-                        }
-                    });
-
-                    // Hit Enemies
-                    enemies.forEach(enemy => {
-                        const d = Math.hypot(enemy.x - this.x, enemy.y - this.y);
-                        if (d <= this.attackRange + enemy.radius) {
-                            const enemyAngle = Math.atan2(enemy.y - this.y, enemy.x - this.x);
-                            if (Math.abs(normalizeAngle(enemyAngle - this.attackAngle)) < Math.PI / 1.6) {
-                                enemy.takeDamage(this.damage * this.damageMult);
-                                currentCombo++;
-                                if (currentCombo > maxCombo) maxCombo = currentCombo;
-                                createParticles(enemy.x, enemy.y, '#00f3ff', 8);
-                            }
-                        }
-                    });
+                    this.facingAngle = this.attackAngle;
+                } else {
+                    this.attackAngle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+                    this.facingAngle = this.attackAngle;
                 }
+
+                SoundEngine.playSlash();
+                triggerHaptic(15);
+
+                // Spawn persistent slash visual effect & cutting sparks
+                slashEffects.push(new SlashEffect(this.x, this.y, this.attackAngle, this.attackRange));
+                createParticles(
+                    this.x + Math.cos(this.attackAngle) * (this.attackRange * 0.7),
+                    this.y + Math.sin(this.attackAngle) * (this.attackRange * 0.7),
+                    '#00f3ff',
+                    5
+                );
+
+                // Deflect Bullets
+                bullets.forEach(b => {
+                    const d = Math.hypot(b.x - this.x, b.y - this.y);
+                    if (d <= this.attackRange + 18 && !b.isPlayerBullet) {
+                        const bulletAngle = Math.atan2(b.y - this.y, b.x - this.x);
+                        if (Math.abs(normalizeAngle(bulletAngle - this.attackAngle)) < Math.PI / 1.5) {
+                            b.isPlayerBullet = true;
+                            b.vx = Math.cos(this.attackAngle) * 13;
+                            b.vy = Math.sin(this.attackAngle) * 13;
+                            b.wasParried = true;
+                            SoundEngine.playParry();
+                            triggerHaptic(40);
+                            createParticles(b.x, b.y, '#ffb700', 10);
+                        }
+                    }
+                });
+
+                // Hit Enemies
+                enemies.forEach(enemy => {
+                    const d = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+                    if (d <= this.attackRange + enemy.radius) {
+                        const enemyAngle = Math.atan2(enemy.y - this.y, enemy.x - this.x);
+                        if (Math.abs(normalizeAngle(enemyAngle - this.attackAngle)) < Math.PI / 1.5) {
+                            enemy.takeDamage(this.damage * this.damageMult);
+                            currentCombo++;
+                            if (currentCombo > maxCombo) maxCombo = currentCombo;
+                            createParticles(enemy.x, enemy.y, '#00f3ff', 8);
+                        }
+                    }
+                });
             }
 
             update(dt) {
@@ -1167,6 +1279,10 @@
                         this.isAttacking = false;
                         this.attackProgress = 0;
                     }
+                }
+                // Process buffered tap if cooldown ready
+                if (this.bufferedAttack && (Date.now() - this.lastAttack >= this.attackCooldown)) {
+                    this.attack();
                 }
 
                 // Energy recharge
@@ -1218,6 +1334,32 @@
                 ctx.beginPath();
                 ctx.arc(0, 0, this.radius * 0.4, 0, Math.PI * 2);
                 ctx.fill();
+
+                // Visible Cyber Katana attached to Player
+                ctx.save();
+                const bladeAngle = this.isAttacking 
+                    ? this.attackAngle + (this.attackProgress - 0.5) * 1.5
+                    : (this.facingAngle || 0);
+                ctx.rotate(bladeAngle);
+
+                // Katana Blade
+                ctx.beginPath();
+                ctx.moveTo(this.radius * 0.6, 3.5);
+                ctx.lineTo(this.radius + 26, 0);
+                ctx.lineTo(this.radius * 0.6, -3.5);
+                ctx.closePath();
+                ctx.fillStyle = this.isAttacking ? '#ffffff' : '#00f3ff';
+                ctx.shadowBlur = this.isAttacking ? 22 : 12;
+                ctx.shadowColor = '#00f3ff';
+                ctx.fill();
+
+                // Katana Hilt Guard
+                ctx.beginPath();
+                ctx.arc(this.radius * 0.65, 0, 3, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff0055';
+                ctx.fill();
+
+                ctx.restore();
 
                 ctx.restore();
             }
@@ -1512,6 +1654,8 @@
         let enemies = [];
         let bullets = [];
         let particles = [];
+            slashEffects = [];
+            document.getElementById('boss-bar-container').classList.add('hidden');
 
         function createParticles(x, y, color, count = 8) {
             for (let i = 0; i < count; i++) {
@@ -1622,6 +1766,7 @@
             bullets = [];
 
             if (chapter === 1) {
+                document.getElementById('boss-bar-container').classList.add('hidden');
                 document.getElementById('chapter-title').innerText = cycleCount > 1
                     ? `SIKLUS ${cycleCount} · BAB 1: PELARIAN NETWORK`
                     : "BAB 1: PELARIAN NETWORK";
@@ -1755,6 +1900,8 @@
                 enemies.forEach(e => e.update(timestamp));
                 bullets.forEach(b => b.update());
                 particles.forEach(p => p.update(dt));
+                slashEffects.forEach(s => s.update(rawDt));
+                slashEffects = slashEffects.filter(s => !s.markedForDeletion);
                 floatingTexts.forEach(ft => ft.update(dt));
 
                 // Cleanup
@@ -1797,6 +1944,7 @@
             drawBackgroundGrid();
             if (gameState === 'COMBAT' || gameState === 'DIALOGUE') {
                 particles.forEach(p => p.draw());
+            slashEffects.forEach(s => s.draw());
                 bullets.forEach(b => b.draw());
                 enemies.forEach(e => e.draw());
                 floatingTexts.forEach(ft => ft.draw());
