@@ -465,9 +465,35 @@
                 🔁 MASUKI SIKLUS BERIKUTNYA
             </button>
 
-            <button id="btn-restart" class="w-full py-4 rounded-2xl bg-gradient-to-r from-red-600 via-pink-600 to-cyan-500 text-white font-orbitron font-black text-lg hover:brightness-110 active:scale-95 transition shadow-[0_0_25px_rgba(255,0,85,0.6)]">
-                REBOOT CORE (ULANGI DARI AWAL)
+            <button id="btn-restart" class="w-full py-3 sm:py-3.5 px-4 rounded-2xl bg-gray-900/80 hover:bg-red-950/40 border border-gray-700/80 hover:border-red-500/50 text-gray-400 hover:text-red-300 font-orbitron font-bold text-xs sm:text-sm tracking-wider transition active:scale-95 flex items-center justify-center gap-2 shadow-none">
+                <span>🔄</span>
+                <span>REBOOT CORE (ULANGI DARI AWAL)</span>
             </button>
+        </div>
+    </div>
+
+    
+    <!-- Confirmation Popup Modal for Reboot Core -->
+    <div id="reboot-confirm-modal" class="absolute inset-0 z-60 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 hidden pointer-events-auto">
+        <div class="glass-panel max-w-sm w-full rounded-3xl p-6 border-2 border-red-500/80 text-center flex flex-col items-center gap-4 shadow-[0_0_50px_rgba(255,0,85,0.5)]">
+            <div class="w-14 h-14 rounded-2xl bg-red-950/80 border border-red-500/60 flex items-center justify-center text-3xl shadow-[0_0_20px_rgba(255,0,85,0.4)]">
+                ⚠️
+            </div>
+            <div>
+                <h3 class="text-xl font-black font-orbitron text-red-500 neon-text-pink">REBOOT CORE?</h3>
+                <p class="text-gray-300 text-xs mt-2 leading-relaxed font-rajdhani">
+                    Apakah Anda yakin ingin memulai ulang dari <span class="text-amber-400 font-bold font-orbitron">Siklus 1</span>?<br>
+                    Semua progres siklus, combo, dan diamond saat ini akan di-reset ke awal.
+                </p>
+            </div>
+            <div class="w-full flex flex-col gap-2.5 mt-1">
+                <button id="btn-reboot-confirm" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-pink-600 text-white font-orbitron font-bold text-xs tracking-wider hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(255,0,85,0.5)]">
+                    YA, REBOOT DARI AWAL
+                </button>
+                <button id="btn-reboot-cancel" class="w-full py-2.5 rounded-xl bg-gray-900/90 border border-gray-700 text-gray-300 hover:text-white font-orbitron font-bold text-xs hover:bg-gray-800 transition active:scale-95">
+                    BATAL
+                </button>
+            </div>
         </div>
     </div>
 
@@ -2013,6 +2039,8 @@
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('gameover-screen').classList.add('hidden');
             document.getElementById('btn-next-cycle').classList.add('hidden');
+            const rebootModalEl = document.getElementById('reboot-confirm-modal');
+            if (rebootModalEl) rebootModalEl.classList.add('hidden');
 
             // Reset panel HP boss dari game sebelumnya (kalau ada)
             document.getElementById('boss-bar-container').classList.add('hidden');
@@ -2175,7 +2203,24 @@
 
         // Event Listeners
         document.getElementById('btn-start-game').onclick = startGame;
-        document.getElementById('btn-restart').onclick = startGame;
+        const rebootModal = document.getElementById('reboot-confirm-modal');
+        document.getElementById('btn-restart').onclick = () => {
+            SoundEngine.playDialogueBeep();
+            if (rebootModal) rebootModal.classList.remove('hidden');
+        };
+        const btnRebootCancel = document.getElementById('btn-reboot-cancel');
+        if (btnRebootCancel) {
+            btnRebootCancel.onclick = () => {
+                if (rebootModal) rebootModal.classList.add('hidden');
+            };
+        }
+        const btnRebootConfirm = document.getElementById('btn-reboot-confirm');
+        if (btnRebootConfirm) {
+            btnRebootConfirm.onclick = () => {
+                if (rebootModal) rebootModal.classList.add('hidden');
+                startGame();
+            };
+        }
         document.getElementById('btn-next-cycle').onclick = enterNextCycle;
         document.getElementById('btn-revive').onclick = performRevive;
         document.getElementById('btn-give-up').onclick = giveUp;
