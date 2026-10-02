@@ -619,3 +619,49 @@ body.dark-mode .cookie-banner {
     opacity: 1;
   }
 }
+
+/* ── Additional Tag Genres & Dark Mode ── */
+.tag.puzzle {
+  background: #fef08a;
+  color: #854d0e;
+}
+.tag.arcade {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+.tag.retro {
+  background: #ffedd5;
+  color: #c2410c;
+}
+.tag.browser {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+body.dark-mode .tag.puzzle {
+  background: #422006;
+  color: #fde047;
+}
+body.dark-mode .tag.arcade {
+  background: #1e1b4b;
+  color: #a5b4fc;
+}
+body.dark-mode .tag.retro {
+  background: #431407;
+  color: #fdba74;
+}
+body.dark-mode .tag.browser {
+  background: #374151;
+  color: #9ca3af;
+}
+body.dark-mode .tag.action {
+  background: #450a0a;
+  color: #fca5a5;
+}
+body.dark-mode .tag.defense {
+  background: #022c22;
+  color: #6ee7b7;
+}
+.sort-container select option {
+  background: #1a202c;
+  color: #e2e8f0;
+}
